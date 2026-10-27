@@ -1,0 +1,155 @@
+@import 'tailwindcss';
+@import './styles/invoice.css';
+
+@theme {
+  /* Cafe counter palette — warm, dark, low-glare */
+  --color-espresso: #1e1510;
+  --color-espresso-2: #2b1f17;
+  --color-espresso-3: #3a2a1f;
+  --color-bone: #f5efe6;
+  --color-bone-2: #ece3d6;
+  --color-card: #fffdf9;
+  --color-line: #e3d8c7;
+  --color-line-2: #d3c4ad;
+  --color-ink: #2a2018;
+  --color-ink-2: #574a3c;
+  --color-muted: #8d7c68;
+  --color-copper: #b4713a;
+  --color-copper-2: #d2914f;
+  --color-copper-soft: #f3e4d3;
+  --color-sage: #4f7a4a;
+  --color-clay: #a4442f;
+
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+
+  --radius-xl2: 18px;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-bone);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.print-only,
+#print-root {
+  display: none;
+}
+
+/* ------------------------------------------------------------ animations */
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideRight {
+  from {
+    opacity: 0;
+    transform: translateX(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.anim-rise {
+  animation: riseIn 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.anim-pop {
+  animation: popIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.anim-fade {
+  animation: fadeIn 0.2s ease both;
+}
+
+.anim-slide {
+  animation: slideRight 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.stagger > * {
+  animation: riseIn 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.04s; }
+.stagger > *:nth-child(3) { animation-delay: 0.06s; }
+.stagger > *:nth-child(4) { animation-delay: 0.08s; }
+.stagger > *:nth-child(5) { animation-delay: 0.10s; }
+.stagger > *:nth-child(6) { animation-delay: 0.12s; }
+.stagger > *:nth-child(7) { animation-delay: 0.14s; }
+.stagger > *:nth-child(8) { animation-delay: 0.16s; }
+
+/* --------------------------------------------------------------- helpers */
+
+.scroll-thin::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+.scroll-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-thin::-webkit-scrollbar-thumb {
+  background: #d8cab5;
+  border-radius: 99px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.scroll-thin::-webkit-scrollbar-thumb:hover {
+  background: #c0ab8e;
+  background-clip: content-box;
+}
+
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+::selection {
+  background: var(--color-copper-soft);
+}

@@ -1,0 +1,165 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1240 1754" width="1240" height="1754" font-family="Georgia, Times New Roman, serif">
+<defs>
+  <pattern id="tickV" width="28" height="11" patternUnits="userSpaceOnUse">
+    <line x1="0.8" y1="0" x2="0.8" y2="11" stroke="#14110c" stroke-width="1.6"/>
+    <line x1="14.5" y1="4.5" x2="14.5" y2="11" stroke="#14110c" stroke-width="1.1"/>
+  </pattern>
+  <pattern id="tickH" width="11" height="28" patternUnits="userSpaceOnUse">
+    <line x1="0" y1="0.8" x2="11" y2="0.8" stroke="#14110c" stroke-width="1.6"/>
+    <line x1="4.5" y1="14.5" x2="11" y2="14.5" stroke="#14110c" stroke-width="1.1"/>
+  </pattern>
+
+  <!-- skeleton of the real bill, 472 x 552 -->
+  <g id="guts">
+    <g fill="none" stroke="#cfc7b6" stroke-width="1.2">
+      <path d="M242 0 V150 M0 150 H472 M0 86 H242 M242 38 H472 M242 76 H472 M242 114 H472 M342 0 V38 M342 114 V150"/>
+    </g>
+    <g fill="#bdb4a2" stroke="none">
+      <rect x="12" y="11" width="146" height="12" fill="#6d6557"/>
+      <rect x="12" y="32" width="118" height="5"/><rect x="12" y="43" width="96" height="5"/>
+      <rect x="12" y="54" width="110" height="5"/><rect x="12" y="65" width="86" height="5"/>
+      <rect x="12" y="94" width="52" height="6" fill="#8d8474"/>
+      <rect x="12" y="110" width="104" height="5"/><rect x="12" y="121" width="88" height="5"/>
+      <rect x="12" y="132" width="96" height="5"/>
+      <rect x="252" y="9" width="44" height="4"/><rect x="252" y="19" width="58" height="6" fill="#8d8474"/>
+      <rect x="352" y="9" width="32" height="4"/><rect x="352" y="19" width="52" height="6" fill="#8d8474"/>
+      <rect x="252" y="47" width="78" height="4"/><rect x="252" y="57" width="56" height="6" fill="#8d8474"/>
+      <rect x="252" y="85" width="70" height="4"/><rect x="252" y="95" width="48" height="6" fill="#8d8474"/>
+      <rect x="252" y="123" width="64" height="4"/><rect x="252" y="133" width="58" height="6" fill="#8d8474"/>
+    </g>
+    <rect x="0" y="150" width="472" height="24" fill="#ece6d9"/>
+    <g fill="none" stroke="#cfc7b6" stroke-width="1.2">
+      <path d="M0 174 H472 M34 150 V428 M250 150 V428 M296 150 V428 M344 150 V428 M376 150 V428 M398 150 V428"/>
+      <path d="M0 430 H472 M0 458 H472 M0 512 H472"/>
+      <path d="M398 344 H472 M398 366 H472 M398 420 H472"/>
+      <path d="M200 458 V512 M262 458 V512 M310 458 V512 M366 458 V512 M414 458 V512 M0 480 H472"/>
+    </g>
+    <g fill="#7d7566" stroke="none">
+      <rect x="7" y="158" width="20" height="6"/><rect x="44" y="158" width="92" height="6"/>
+      <rect x="256" y="158" width="34" height="6"/><rect x="302" y="158" width="36" height="6"/>
+      <rect x="350" y="158" width="20" height="6"/><rect x="380" y="158" width="12" height="6"/>
+      <rect x="428" y="158" width="38" height="6"/>
+    </g>
+    <g fill="#bdb4a2" stroke="none">
+      <rect x="10" y="184" width="14" height="5"/><rect x="44" y="184" width="134" height="5"/><rect x="256" y="184" width="30" height="5"/><rect x="302" y="184" width="26" height="5"/><rect x="422" y="184" width="44" height="5"/>
+      <rect x="10" y="206" width="14" height="5"/><rect x="44" y="206" width="158" height="5"/><rect x="256" y="206" width="30" height="5"/><rect x="302" y="206" width="26" height="5"/><rect x="428" y="206" width="38" height="5"/>
+      <rect x="10" y="228" width="14" height="5"/><rect x="44" y="228" width="112" height="5"/><rect x="256" y="228" width="30" height="5"/><rect x="302" y="228" width="26" height="5"/><rect x="416" y="228" width="50" height="5"/>
+      <rect x="10" y="250" width="14" height="5"/><rect x="44" y="250" width="146" height="5"/><rect x="256" y="250" width="30" height="5"/><rect x="302" y="250" width="26" height="5"/><rect x="432" y="250" width="34" height="5"/>
+      <rect x="10" y="272" width="14" height="5"/><rect x="44" y="272" width="98" height="5"/><rect x="256" y="272" width="30" height="5"/><rect x="302" y="272" width="26" height="5"/><rect x="424" y="272" width="42" height="5"/>
+      <rect x="424" y="350" width="42" height="6" fill="#8d8474"/>
+      <rect x="330" y="374" width="34" height="5"/><rect x="430" y="374" width="36" height="5"/>
+      <rect x="330" y="392" width="34" height="5"/><rect x="430" y="392" width="36" height="5"/>
+      <rect x="310" y="404" width="54" height="5"/><rect x="440" y="404" width="26" height="5"/>
+      <rect x="416" y="424" width="50" height="7" fill="#6d6557"/>
+      <rect x="10" y="436" width="78" height="4"/><rect x="10" y="445" width="198" height="7" fill="#8d8474"/>
+      <rect x="40" y="465" width="56" height="5"/><rect x="214" y="465" width="38" height="5"/><rect x="272" y="465" width="28" height="5"/><rect x="322" y="465" width="36" height="5"/><rect x="378" y="465" width="28" height="5"/><rect x="428" y="465" width="36" height="5"/>
+      <rect x="10" y="488" width="70" height="5"/><rect x="214" y="488" width="38" height="5"/><rect x="272" y="488" width="24" height="5"/><rect x="322" y="488" width="36" height="5"/><rect x="378" y="488" width="24" height="5"/><rect x="428" y="488" width="36" height="5"/>
+      <rect x="10" y="520" width="46" height="5" fill="#8d8474"/>
+      <rect x="10" y="532" width="160" height="4"/><rect x="10" y="541" width="132" height="4"/>
+      <rect x="352" y="520" width="104" height="6" fill="#8d8474"/><rect x="368" y="541" width="72" height="4"/>
+    </g>
+  </g>
+
+  <!-- hex bolt head -->
+  <g id="bolt">
+    <polygon points="15,0 7.5,13 -7.5,13 -15,0 -7.5,-13 7.5,-13" fill="#14110c"/>
+    <polygon points="8,0 4,6.9 -4,6.9 -8,0 -4,-6.9 4,-6.9" fill="none" stroke="#faf7f0" stroke-width="1.6"/>
+  </g>
+</defs>
+
+<rect width="1240" height="1754" fill="#faf7f0"/>
+
+<!-- ============================ masthead ============================ -->
+<g stroke="#14110c" fill="none">
+  <line x1="80" y1="62" x2="1160" y2="62" stroke-width="6"/>
+  <line x1="80" y1="74" x2="1160" y2="74" stroke-width="1.6"/>
+  <line x1="80" y1="212" x2="1160" y2="212" stroke-width="1.6"/>
+  <line x1="80" y1="220" x2="1160" y2="220" stroke-width="4"/>
+</g>
+<text x="620" y="110" text-anchor="middle" font-size="19" letter-spacing="11" fill="#5a5245">NAVEEN AIRTECH · CHENGALPATTU</text>
+<text x="620" y="166" text-anchor="middle" font-size="46" font-weight="bold" fill="#14110c">Border Studies for the Printed Bill</text>
+<text x="620" y="196" text-anchor="middle" font-size="17" font-style="italic" fill="#6d6557">Four newsprint frames, each costing under 2 mm of the A4 sheet</text>
+
+<!-- ============================== I ================================= -->
+<text x="80" y="268" font-size="20" font-weight="bold" letter-spacing="4" fill="#14110c">I · OXFORD RULE</text>
+<text x="80" y="290" font-size="15" font-style="italic" fill="#6d6557">The broadsheet standard — one fat rule, one hairline, nothing else.</text>
+<g transform="translate(80,300)">
+  <use href="#guts" x="24" y="24"/>
+  <rect x="2.5" y="2.5" width="515" height="595" fill="none" stroke="#14110c" stroke-width="5"/>
+  <rect x="13" y="13" width="494" height="574" fill="none" stroke="#14110c" stroke-width="1.5"/>
+</g>
+
+<!-- ============================== II ================================ -->
+<text x="640" y="268" font-size="20" font-weight="bold" letter-spacing="4" fill="#14110c">II · BOLTED PLATE</text>
+<text x="640" y="290" font-size="15" font-style="italic" fill="#6d6557">Same rules, hex bolt heads on the seams. The bill as a machined panel.</text>
+<g transform="translate(640,300)">
+  <use href="#guts" x="24" y="24"/>
+  <rect x="2" y="2" width="516" height="596" fill="none" stroke="#14110c" stroke-width="4"/>
+  <rect x="12" y="12" width="496" height="576" fill="none" stroke="#14110c" stroke-width="1.5"/>
+  <use href="#bolt" x="12" y="12"/><use href="#bolt" x="508" y="12"/>
+  <use href="#bolt" x="12" y="588"/><use href="#bolt" x="508" y="588"/>
+  <use href="#bolt" x="260" y="12"/><use href="#bolt" x="260" y="588"/>
+  <use href="#bolt" x="12" y="300"/><use href="#bolt" x="508" y="300"/>
+</g>
+
+<!-- ============================= III ================================ -->
+<text x="80" y="978" font-size="20" font-weight="bold" letter-spacing="4" fill="#14110c">III · GAUGE SCALE</text>
+<text x="80" y="1000" font-size="15" font-style="italic" fill="#6d6557">A pressure-gauge rule runs the whole perimeter. Precise, not pretty.</text>
+<g transform="translate(80,1010)">
+  <use href="#guts" x="24" y="24"/>
+  <rect x="5" y="5" width="510" height="10" fill="url(#tickV)"/>
+  <rect x="5" y="585" width="510" height="10" fill="url(#tickV)"/>
+  <rect x="5" y="5" width="10" height="590" fill="url(#tickH)"/>
+  <rect x="505" y="5" width="10" height="590" fill="url(#tickH)"/>
+  <g fill="#14110c">
+    <rect x="2" y="2" width="18" height="18"/><rect x="500" y="2" width="18" height="18"/>
+    <rect x="2" y="580" width="18" height="18"/><rect x="500" y="580" width="18" height="18"/>
+  </g>
+  <rect x="1.75" y="1.75" width="516.5" height="596.5" fill="none" stroke="#14110c" stroke-width="3.5"/>
+  <rect x="17" y="17" width="486" height="566" fill="none" stroke="#14110c" stroke-width="1"/>
+</g>
+
+<!-- ============================== IV ================================ -->
+<text x="640" y="978" font-size="20" font-weight="bold" letter-spacing="4" fill="#14110c">IV · AIR CREST</text>
+<text x="640" y="1000" font-size="15" font-style="italic" fill="#6d6557">Blast-waves in the corners, a masthead plate breaking the top rule.</text>
+<g transform="translate(640,1010)">
+  <use href="#guts" x="24" y="24"/>
+  <rect x="2" y="2" width="516" height="596" fill="none" stroke="#14110c" stroke-width="4"/>
+  <rect x="11" y="11" width="498" height="578" fill="none" stroke="#14110c" stroke-width="1"/>
+  <g fill="none" stroke="#14110c" stroke-linecap="round">
+    <g transform="translate(11,11)">
+      <path d="M30 0 A30 30 0 0 1 0 30" stroke-width="2.4"/>
+      <path d="M42 0 A42 42 0 0 1 0 42" stroke-width="1.2"/>
+      <path d="M54 0 A54 54 0 0 1 0 54" stroke-width="1.2"/>
+    </g>
+    <g transform="translate(509,11) scale(-1,1)">
+      <path d="M30 0 A30 30 0 0 1 0 30" stroke-width="2.4"/>
+      <path d="M42 0 A42 42 0 0 1 0 42" stroke-width="1.2"/>
+      <path d="M54 0 A54 54 0 0 1 0 54" stroke-width="1.2"/>
+    </g>
+    <g transform="translate(11,589) scale(1,-1)">
+      <path d="M30 0 A30 30 0 0 1 0 30" stroke-width="2.4"/>
+      <path d="M42 0 A42 42 0 0 1 0 42" stroke-width="1.2"/>
+      <path d="M54 0 A54 54 0 0 1 0 54" stroke-width="1.2"/>
+    </g>
+    <g transform="translate(509,589) scale(-1,-1)">
+      <path d="M30 0 A30 30 0 0 1 0 30" stroke-width="2.4"/>
+      <path d="M42 0 A42 42 0 0 1 0 42" stroke-width="1.2"/>
+      <path d="M54 0 A54 54 0 0 1 0 54" stroke-width="1.2"/>
+    </g>
+  </g>
+  <g fill="#14110c">
+    <polygon points="46,46 54,38 62,46 54,54"/>
+    <polygon points="474,46 466,38 458,46 466,54"/>
+    <polygon points="46,554 54,562 62,554 54,546"/>
+    <polygon points="474,554 466,562 458,554 466,546"/>
+  </g>
+  <path d="M166 16 L182 1 H338 L354 16 L338 31 H182 Z" fill="#faf7f0" stroke="#14110c" stroke-width="2.4"/>
+  <rect x="196" y="10" width="128" height="12" fill="#14110c"/>
+</g>
+
+<!-- ============================== foot ============================== -->
+<line x1="80" y1="1668" x2="1160" y2="1668" stroke="#14110c" stroke-width="1.6"/>
+<text x="80" y="1698" font-size="15" fill="#6d6557">The grey skeleton inside each frame is the real bill geometry — header, items, totals, HSN table, footer — untouched.</text>
+<text x="1160" y="1698" text-anchor="end" font-size="15" font-style="italic" fill="#6d6557">Pick one and I will build it.</text>
+</svg>
