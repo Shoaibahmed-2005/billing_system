@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { signIn } from '../lib/auth'
+import { rememberedEmail, signIn } from '../lib/auth'
 import { SELLER } from '../lib/seller'
 import { Button, Field, Input } from './ui'
 
@@ -8,7 +8,10 @@ import { Button, Field, Input } from './ui'
  * dashboard — there is deliberately no sign-up here.
  */
 export default function SignIn() {
-  const [email, setEmail] = useState('')
+  // Filled in from the last successful sign-in on this machine, so the usual
+  // case is: open, type the password, done.
+  const known = rememberedEmail()
+  const [email, setEmail] = useState(known)
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -88,10 +91,10 @@ export default function SignIn() {
               <Input
                 type="email"
                 autoComplete="username"
-                autoFocus
+                autoFocus={!known}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="shop@naveenairtech.in"
+                placeholder="name@gmail.com"
               />
             </Field>
 
@@ -99,6 +102,7 @@ export default function SignIn() {
               <Input
                 type="password"
                 autoComplete="current-password"
+                autoFocus={Boolean(known)}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"

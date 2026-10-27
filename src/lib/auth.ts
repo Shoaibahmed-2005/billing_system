@@ -39,12 +39,34 @@ export const onAuthChange = (cb: (account: Account | null) => void): (() => void
   return () => data.subscription.unsubscribe()
 }
 
+/**
+ * The address that last signed in on this machine, so the login screen can
+ * fill it in and leave only the password to type. Only ever written after a
+ * sign-in actually succeeds — nothing is revealed on a machine where nobody
+ * has signed in.
+ */
+const LAST_EMAIL = 'nat.lastEmail'
+
+export const rememberedEmail = (): string => {
+  try {
+    return localStorage.getItem(LAST_EMAIL) ?? ''
+  } catch {
+    return ''
+  }
+}
+
 export const signIn = async (email: string, password: string): Promise<void> => {
+  const trimmed = email.trim()
   const { error } = await supabase().auth.signInWithPassword({
-    email: email.trim(),
+    email: trimmed,
     password,
   })
   if (error) throw new Error(friendly(error.message))
+  try {
+    localStorage.setItem(LAST_EMAIL, trimmed)
+  } catch {
+    // private window or blocked storage — the field just starts empty next time
+  }
 }
 
 export const signOut = async (): Promise<void> => {

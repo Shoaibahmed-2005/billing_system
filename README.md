@@ -149,6 +149,35 @@ If the browser's site data is cleared, or the machine sits unused long enough fo
 to lapse, it asks once more. Passwords are changed and reset from the Supabase dashboard, under
 **Authentication → Users**.
 
+## Deploying to Vercel
+
+The repo already carries `vercel.json`, so the build settings are picked up automatically.
+
+1. **vercel.com → Add New → Project**, and import `naveenairtech/billing_system`.
+2. Vercel reads the framework, build command and output directory from `vercel.json` — leave
+   those alone.
+3. Open **Environment Variables** and add the same two that are in `.env.local`:
+
+   | Name | Value |
+   | --- | --- |
+   | `VITE_SUPABASE_URL` | `https://ablhveylchqtnkuynkjz.supabase.co` |
+   | `VITE_SUPABASE_ANON_KEY` | the `anon public` key |
+
+   Tick all three environments (Production, Preview, Development). These are baked into the
+   bundle at build time, so a later change needs a redeploy to take effect.
+4. **Deploy.**
+
+Every push to `main` redeploys. Nothing else needs configuring on the Supabase side — the app
+signs in with email and password, so there are no redirect URLs to whitelist.
+
+### Before handing it to the client
+
+The site is public: anyone with the URL reaches the login screen. The data behind it is not —
+row level security refuses every read and write that is not signed in, which is worth
+re-checking after any schema change.
+
+Clear the demo catalogue once their real products are in: **Settings → Clear all seed data**.
+
 ## Layout of the code
 
 ```
