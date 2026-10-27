@@ -123,21 +123,31 @@ Supabase runs the database. It does **not** host a web front-end, so the site it
 static host — Vercel, Netlify or Cloudflare Pages all have a free tier and all deploy this project
 with `npm run build` and a `dist` output directory.
 
-1. Create a project at supabase.com.
-2. **SQL Editor → New query**, paste `supabase/schema.sql`, Run. That creates the four tables and
-   turns on row level security.
-3. **Authentication → Users → Add user** — one account for the shop. The policies in the schema
-   only allow a signed-in user, because the anon key ships inside the browser bundle and anyone
-   with the site URL has it.
-4. Copy `.env.example` to `.env.local` and fill in the project URL and anon key from
-   **Project Settings → Data API** and **Project Settings → API Keys**.
-5. `npm run dev` — the app now reads and writes Supabase instead of browser storage.
-6. Deploy `dist` to the static host, setting the same two environment variables there.
+The project is already pointed at `ablhveylchqtnkuynkjz`. What is left:
 
-**Still to do before this is live:** the app has no sign-in screen yet, so with the policies above
-it will be refused by the database. Either add a login screen, or — for a first test only —
-uncomment the anon block at the foot of `supabase/schema.sql`, which lets anyone with the URL read
-and write. Do not leave that on for a site reachable from the internet.
+1. **Run the schema.** Supabase dashboard → **SQL Editor → New query**, paste
+   `supabase/schema.sql`, Run. That creates the four tables and turns on row level security.
+2. **Create the one account.** **Authentication → Users → Add user**, with an email and password,
+   and tick *Auto Confirm User*. There is no sign-up in the app by design — this is the only
+   account, and it is created here.
+3. **Paste the anon key.** `.env.local` already holds the project URL; fill in
+   `VITE_SUPABASE_ANON_KEY` from **Project Settings → API Keys → anon public**.
+4. `npm run dev` — the app now asks to sign in, then reads and writes Supabase.
+5. Deploy `dist` to the static host, setting the same two environment variables there.
+
+Until the anon key is filled in, the app keeps running on this machine's browser storage, so
+nothing breaks halfway through the setup.
+
+### Signing in
+
+One email and password, typed once per device. The session is kept in that browser's storage and
+the token is renewed in the background, so every later visit opens straight to the bill — no
+retyping. The account's email and a **sign-out** button sit at the foot of the sidebar; signing out
+is the only thing that brings the login screen back.
+
+If the browser's site data is cleared, or the machine sits unused long enough for the refresh token
+to lapse, it asks once more. Passwords are changed and reset from the Supabase dashboard, under
+**Authentication → Users**.
 
 ## Layout of the code
 
@@ -150,11 +160,13 @@ src/
     words.ts      Rupees in words, Tally-style ("... Five Hundred and Seventy Nine Only")
     format.ts     Number formatting matched to the reference bill
     pdf.ts        A4 PDF export and the WhatsApp hand-off
+    auth.ts       Sign in / sign out, and whether a sign-in is needed at all
     store.ts      Picks a backend and re-exports it
     backends/     local.ts (browser storage), supabase.ts, types.ts (the interface)
     seed.ts       Demo products and companies
   components/
     InvoiceDocument.tsx   The bill — printed, previewed and edited from this one component
+    SignIn.tsx            The front door, shown only when Supabase is configured
     ...
   styles/invoice.css      Print styles in mm — owns the printed document
   pages/                  One file per screen
