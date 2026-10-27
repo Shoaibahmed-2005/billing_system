@@ -1,9 +1,22 @@
 # Naveen Airtech — Billing
 
+**Live: https://billing-system-one-swart.vercel.app**
+
 A billing counter for Naveen Airtech (Chengalpattu). Pick the buyer, tap the parts, settle the
 price, and the printed invoice comes out matching the firm's existing Tally bill exactly.
 
-## Run it
+Sign in with the shop account. There is no sign-up — the one account is created in the Supabase
+dashboard, and the session is kept per device, so after the first time it opens straight to the
+bill.
+
+| | |
+| --- | --- |
+| Live site | https://billing-system-one-swart.vercel.app |
+| Hosting | Vercel — every push to `main` redeploys |
+| Database | Supabase (`ablhveylchqtnkuynkjz`), row level security on |
+| Stack | React 18 · TypeScript · Vite · Tailwind v4 |
+
+## Run it locally
 
 ```bash
 npm install
@@ -11,6 +24,10 @@ npm run dev
 ```
 
 Then open http://localhost:5173.
+
+Without `.env.local` it runs on this machine's browser storage and skips the login entirely, which
+is the quickest way to try something out without touching live data. Copy `.env.example` to
+`.env.local` and fill in the anon key to point it at the real database instead.
 
 ## Screens
 
@@ -117,26 +134,20 @@ first open.
 
 To clear it: **Settings → Clear all seed data**. To put it back: **Restore demo catalogue**.
 
-## Moving to Supabase
+## The database
 
-Supabase runs the database. It does **not** host a web front-end, so the site itself goes to a
-static host — Vercel, Netlify or Cloudflare Pages all have a free tier and all deploy this project
-with `npm run build` and a `dist` output directory.
+Supabase project `ablhveylchqtnkuynkjz`, with four tables created by `supabase/schema.sql`:
+`products`, `companies`, `invoices` and `settings`.
 
-The project is already pointed at `ablhveylchqtnkuynkjz`. What is left:
+The buyer and the line items are stored as a **snapshot on the invoice itself**, not as foreign
+keys. A bill printed last year must keep showing the address and the prices it was printed with,
+even after the company moves or the catalogue is repriced.
 
-1. **Run the schema.** Supabase dashboard → **SQL Editor → New query**, paste
-   `supabase/schema.sql`, Run. That creates the four tables and turns on row level security.
-2. **Create the one account.** **Authentication → Users → Add user**, with an email and password,
-   and tick *Auto Confirm User*. There is no sign-up in the app by design — this is the only
-   account, and it is created here.
-3. **Paste the anon key.** `.env.local` already holds the project URL; fill in
-   `VITE_SUPABASE_ANON_KEY` from **Project Settings → API Keys → anon public**.
-4. `npm run dev` — the app now asks to sign in, then reads and writes Supabase.
-5. Deploy `dist` to the static host, setting the same two environment variables there.
-
-Until the anon key is filled in, the app keeps running on this machine's browser storage, so
-nothing breaks halfway through the setup.
+Row level security is on, and the only policies are for signed-in users. That matters because the
+anon key ships inside the browser bundle — anyone who loads the site has it. Checked against the
+live project: an anonymous read returns nothing and an anonymous insert is rejected outright with
+`42501 new row violates row-level security policy`. Worth re-running that check after any schema
+change.
 
 ### Signing in
 
@@ -149,34 +160,53 @@ If the browser's site data is cleared, or the machine sits unused long enough fo
 to lapse, it asks once more. Passwords are changed and reset from the Supabase dashboard, under
 **Authentication → Users**.
 
-## Deploying to Vercel
+## Hosting
 
-The repo already carries `vercel.json`, so the build settings are picked up automatically.
+Already deployed at **https://billing-system-one-swart.vercel.app**, from `vercel.json` in this
+repo. Every push to `main` redeploys on its own.
 
-1. **vercel.com → Add New → Project**, and import `naveenairtech/billing_system`.
-2. Vercel reads the framework, build command and output directory from `vercel.json` — leave
-   those alone.
-3. Open **Environment Variables** and add the same two that are in `.env.local`:
+Two environment variables are set in the Vercel project:
 
-   | Name | Value |
-   | --- | --- |
-   | `VITE_SUPABASE_URL` | `https://ablhveylchqtnkuynkjz.supabase.co` |
-   | `VITE_SUPABASE_ANON_KEY` | the `anon public` key |
+| Name | Value |
+| --- | --- |
+| `VITE_SUPABASE_URL` | `https://ablhveylchqtnkuynkjz.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | the `anon public` key |
 
-   Tick all three environments (Production, Preview, Development). These are baked into the
-   bundle at build time, so a later change needs a redeploy to take effect.
-4. **Deploy.**
+They are baked into the bundle at build time, so changing one needs a **Redeploy** to take
+effect. The giveaway that they did not reach a build is the site opening straight to New Bill
+with no login — that is the browser-storage fallback, not the database.
 
-Every push to `main` redeploys. Nothing else needs configuring on the Supabase side — the app
-signs in with email and password, so there are no redirect URLs to whitelist.
+Nothing needs configuring on the Supabase side: the app signs in with email and password, so
+there are no redirect URLs to whitelist.
 
-### Before handing it to the client
+### Setting it up again from scratch
 
-The site is public: anyone with the URL reaches the login screen. The data behind it is not —
-row level security refuses every read and write that is not signed in, which is worth
-re-checking after any schema change.
+Only needed for a second shop or a fresh Supabase project.
 
-Clear the demo catalogue once their real products are in: **Settings → Clear all seed data**.
+1. **SQL Editor → New query**, paste `supabase/schema.sql`, Run.
+2. **Authentication → Users → Add user**, with *Auto Confirm User* ticked.
+3. Copy the URL and `anon public` key into `.env.local`, and into the host's environment
+   variables.
+
+## Before the client uses it for real
+
+- **Clear the demo data** once their own products are in: **Settings → Clear all seed data**. That
+  removes the seeded catalogue, the sample companies and any test bills in one go.
+- **One shared login.** Everyone at the counter signs in as the same user, so there is no record of
+  who billed what. Separate staff accounts and an audit trail are a schema change, not a settings
+  toggle — worth deciding before a year of invoices is in there.
+- **Back-ups.** Supabase's free tier keeps limited point-in-time history. If these invoices are the
+  only copy of the firm's billing record, check what the plan actually retains.
+
+## Known limits
+
+- The PDF is a picture of the bill, not selectable text. Fine for WhatsApp and printing; not for
+  anyone wanting to copy figures out of it.
+- A bill long enough to overflow one A4 page runs onto a second. The reference bill and anything
+  near its length fit on one.
+- Direct file sharing to WhatsApp needs a browser that supports sharing files — Android, iOS and
+  recent desktop Chrome on Windows. Elsewhere the PDF downloads and WhatsApp Web opens with the
+  message ready, leaving only the attach step.
 
 ## Layout of the code
 
