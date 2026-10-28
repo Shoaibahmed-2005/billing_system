@@ -29,6 +29,20 @@ Without `.env.local` it runs on this machine's browser storage and skips the log
 is the quickest way to try something out without touching live data. Copy `.env.example` to
 `.env.local` and fill in the anon key to point it at the real database instead.
 
+## On a phone
+
+The counter is used on a phone more than a desktop, so below 1024px the layout changes rather
+than just shrinking:
+
+- The sidebar becomes a top bar with a slide-in drawer, giving the full width to the bill.
+- Bill lines and the product catalogue become cards instead of wide tables — nothing scrolls
+  sideways.
+- In the preview, the bill is shrunk with `zoom` to fit the screen, so the whole sheet is visible
+  and every figure on it is still tappable. The running total is pinned to the bottom of the
+  screen while you bargain.
+
+Printing from a phone goes through the browser's own print dialog, same as desktop.
+
 ## Screens
 
 | Screen | What it does |

@@ -60,6 +60,15 @@ const Icon = {
   ),
 } satisfies Record<Page, ReactNode>
 
+export const PAGE_TITLES: Record<Page, string> = {
+  billing: 'New Bill',
+  repeat: 'Repeat Bill',
+  invoices: 'Invoices',
+  products: 'Products',
+  companies: 'Companies',
+  settings: 'Settings',
+}
+
 const NAV: { key: Page; label: string; note: string }[] = [
   { key: 'billing', label: 'New Bill', note: 'Build & print' },
   { key: 'repeat', label: 'Repeat Bill', note: 'Sell again' },
@@ -84,7 +93,7 @@ export default function Sidebar({
   onSignOut?: () => void
 }) {
   return (
-    <aside className="flex w-[246px] shrink-0 flex-col bg-espresso text-bone/70">
+    <aside className="scroll-thin flex w-[246px] shrink-0 flex-col overflow-y-auto bg-espresso text-bone/70">
       <div className="px-6 pb-7 pt-7">
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-2xl bg-copper font-display text-[17px] font-bold text-espresso">

@@ -62,7 +62,7 @@ export default function RepeatPage({
             fresh copy.
           </p>
         </div>
-        <div className="w-80">
+        <div className="w-full sm:w-80">
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -86,7 +86,7 @@ export default function RepeatPage({
         <div className="stagger space-y-5">
           {groups.map((g) => (
             <Card key={g.name} className="overflow-hidden">
-              <header className="flex items-center justify-between gap-4 border-b border-line bg-bone/60 px-6 py-3.5">
+              <header className="flex items-center justify-between gap-4 border-b border-line bg-bone/60 px-4 py-3.5 sm:px-6">
                 <div className="flex items-center gap-3">
                   <h2 className="font-display text-[18px] font-semibold leading-tight text-ink">
                     {g.name}
@@ -104,7 +104,7 @@ export default function RepeatPage({
                 return (
                   <div
                     key={inv.id}
-                    className="group flex flex-wrap items-center gap-4 border-b border-line/60 px-6 py-3.5 transition-colors last:border-0 hover:bg-bone/70"
+                    className="group flex flex-wrap items-center gap-x-4 gap-y-2.5 border-b border-line/60 px-4 py-3.5 transition-colors last:border-0 hover:bg-bone/70 sm:px-6"
                   >
                     <div className="min-w-[130px]">
                       <div className="text-[14px] font-bold text-ink">{inv.meta.invoiceNo}</div>
@@ -127,7 +127,7 @@ export default function RepeatPage({
                       <Pill tone="copper">IGST</Pill>
                     )}
 
-                    <div className="min-w-[110px] text-right">
+                    <div className="ml-auto min-w-[100px] text-right">
                       <div className="font-display text-[17px] font-semibold text-ink">
                         {money(calc.grandTotal)}
                       </div>

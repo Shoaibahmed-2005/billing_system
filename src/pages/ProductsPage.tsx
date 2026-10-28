@@ -42,11 +42,13 @@ export default function ProductsPage({
             carry straight onto the bill.
           </p>
         </div>
-        <div className="flex items-center gap-2.5">
-          <div className="w-64">
+        <div className="flex w-full items-center gap-2.5 sm:w-auto">
+          <div className="min-w-0 flex-1 sm:w-64 sm:flex-none">
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search…" />
           </div>
-          <Button onClick={() => setAdding(true)}>+ Add product</Button>
+          <Button className="shrink-0" onClick={() => setAdding(true)}>
+            + Add
+          </Button>
         </div>
       </header>
 
@@ -54,7 +56,51 @@ export default function ProductsPage({
         {list.length === 0 ? (
           <Empty title="Nothing here" note="Add a product and it shows up on the billing screen." />
         ) : (
-          <table className="w-full text-[13.5px]">
+          <>
+            {/* phone: cards instead of a six-column table */}
+            <div className="divide-y divide-line/60 lg:hidden">
+              {list.map((p) => (
+                <div key={p.id} className="px-4 py-3.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-[14px] font-bold leading-snug text-ink">{p.name}</div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-muted">
+                        <span className="font-mono">{p.hsn}</span>
+                        <span>{p.kind === 'service' ? 'Service' : `${p.unit} / ${p.per}`}</span>
+                        <span>GST {p.gstRate}%</span>
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right font-display text-[16px] font-semibold text-ink">
+                      {money(p.rate)}
+                    </div>
+                  </div>
+                  <div className="mt-2.5 flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => setEditing(p)}>
+                      Edit
+                    </Button>
+                    {confirmId === p.id ? (
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={async () => {
+                          await deleteProduct(p.id)
+                          setConfirmId(null)
+                          onChanged()
+                        }}
+                      >
+                        Confirm
+                      </Button>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => setConfirmId(p.id)}>
+                        Delete
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <table className="hidden w-full text-[13.5px] lg:table">
             <thead>
               <tr className="border-b border-line text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">
                 <th className="py-3 pl-6 text-left">Item</th>
@@ -114,7 +160,8 @@ export default function ProductsPage({
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </>
         )}
       </Card>
 

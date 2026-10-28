@@ -91,7 +91,7 @@ export default function SettingsPage({
               {companies.map((c) => (
                 <div
                   key={c.id}
-                  className="group flex items-center gap-4 border-b border-line/60 px-6 py-3 transition-colors last:border-0 hover:bg-bone/70"
+                  className="group flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line/60 px-4 py-3 transition-colors last:border-0 hover:bg-bone/70 sm:px-6"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13.5px] font-bold text-ink">{c.name}</div>

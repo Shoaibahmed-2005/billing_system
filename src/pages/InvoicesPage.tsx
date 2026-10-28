@@ -48,7 +48,7 @@ export default function InvoicesPage({
             {invoices.length} saved bill{invoices.length === 1 ? '' : 's'} — reprint any of them as-is.
           </p>
         </div>
-        <div className="w-72">
+        <div className="w-full sm:w-72">
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
@@ -77,7 +77,7 @@ export default function InvoicesPage({
                 key={inv.id}
                 className="group transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-line-2 hover:shadow-[0_18px_34px_-24px_rgba(42,32,24,0.55)]"
               >
-                <div className="flex flex-wrap items-center gap-5 px-6 py-4">
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-4 py-4 sm:px-6">
                   <div className="min-w-[150px]">
                     <div className="font-display text-[18px] font-semibold leading-tight text-ink">
                       {inv.meta.invoiceNo}
@@ -101,14 +101,14 @@ export default function InvoicesPage({
                     )}
                   </div>
 
-                  <div className="min-w-[120px] text-right">
+                  <div className="ml-auto min-w-[110px] text-right sm:ml-0">
                     <div className="font-display text-[19px] font-semibold text-ink">
                       {money(calc.grandTotal)}
                     </div>
                     <div className="text-[11.5px] text-muted">tax {money(calc.totalTax)}</div>
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex w-full items-center gap-2 sm:w-auto">
                     <Button variant="ghost" size="sm" onClick={() => onEdit(inv)}>
                       Edit
                     </Button>

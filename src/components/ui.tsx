@@ -123,7 +123,7 @@ export function CardHead({
   right?: ReactNode
 }) {
   return (
-    <header className="flex items-start justify-between gap-4 border-b border-line px-6 py-4">
+    <header className="flex flex-wrap items-start justify-between gap-3 border-b border-line px-4 py-4 sm:px-6">
       <div>
         <h2 className="font-display text-[19px] font-semibold leading-tight text-ink">{title}</h2>
         {subtitle ? <p className="mt-0.5 text-[12.5px] text-muted">{subtitle}</p> : null}
@@ -166,9 +166,9 @@ export function Modal({
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
       <div className="anim-fade fixed inset-0 bg-espresso/55 backdrop-blur-[3px]" onClick={onClose} />
       <div
-        className={`anim-pop relative z-10 w-full ${width} my-auto rounded-[24px] border border-line bg-card shadow-[0_30px_80px_-20px_rgba(30,21,16,0.55)]`}
+        className={`anim-pop relative z-10 w-full ${width} my-auto rounded-[20px] border border-line bg-card shadow-[0_30px_80px_-20px_rgba(30,21,16,0.55)] sm:rounded-[24px]`}
       >
-        <header className="flex items-start justify-between gap-4 border-b border-line px-6 py-5">
+        <header className="flex items-start justify-between gap-4 border-b border-line px-5 py-4 sm:px-6 sm:py-5">
           <div>
             <h3 className="font-display text-[21px] font-semibold leading-tight text-ink">{title}</h3>
             {subtitle ? <p className="mt-0.5 text-[12.5px] text-muted">{subtitle}</p> : null}
@@ -188,7 +188,7 @@ export function Modal({
             </svg>
           </button>
         </header>
-        <div className="px-6 py-5">{children}</div>
+        <div className="px-5 py-5 sm:px-6">{children}</div>
       </div>
     </div>,
     document.body,

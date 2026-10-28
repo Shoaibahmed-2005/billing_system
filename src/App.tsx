@@ -15,6 +15,7 @@ import { todayDotted } from './lib/format'
 import { authEnabled, currentAccount, onAuthChange, signOut, type Account } from './lib/auth'
 import { ensureSeeded, getSeller, listCompanies, listInvoices, listProducts, newId } from './lib/store'
 import Sidebar, { type Page } from './components/Sidebar'
+import { MobileBar, MobileDrawer } from './components/MobileNav'
 import SignIn from './components/SignIn'
 import InvoiceDocument from './components/InvoiceDocument'
 import { Button } from './components/ui'
@@ -53,6 +54,7 @@ export default function App() {
   const [authChecked, setAuthChecked] = useState(!authEnabled)
 
   const [page, setPage] = useState<Page>('billing')
+  const [navOpen, setNavOpen] = useState(false)
   const [products, setProducts] = useState<Product[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
   const [invoices, setInvoices] = useState<Invoice[]>([])
@@ -180,16 +182,22 @@ export default function App() {
   return (
     <>
       <div className="screen-only flex h-full">
-        <Sidebar
-          page={page}
-          onNavigate={navigate}
-          invoiceCount={invoices.length}
-          account={account}
-          onSignOut={() => void signOut()}
-        />
+        {/* Below lg the sidebar is a drawer instead, so the bill gets the width. */}
+        <div className="hidden lg:flex">
+          <Sidebar
+            page={page}
+            onNavigate={navigate}
+            invoiceCount={invoices.length}
+            account={account}
+            onSignOut={() => void signOut()}
+          />
+        </div>
 
-        <main className="scroll-thin flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-[1680px] px-8 py-8">
+        <div className="flex min-w-0 flex-1 flex-col">
+          <MobileBar page={page} onMenu={() => setNavOpen(true)} />
+
+          <main className="scroll-thin flex-1 overflow-y-auto">
+            <div className="mx-auto max-w-[1680px] px-4 py-5 sm:px-6 lg:px-8 lg:py-8">
             {page === 'billing' && (
               <BillingPage
                 key={billingKey}
@@ -249,9 +257,20 @@ export default function App() {
                 }}
               />
             )}
-          </div>
-        </main>
+            </div>
+          </main>
+        </div>
       </div>
+
+      <MobileDrawer
+        open={navOpen}
+        page={page}
+        onNavigate={navigate}
+        onClose={() => setNavOpen(false)}
+        invoiceCount={invoices.length}
+        account={account}
+        onSignOut={() => void signOut()}
+      />
 
       {/*
         Portalled to <body> as a direct child, and the print stylesheet hides

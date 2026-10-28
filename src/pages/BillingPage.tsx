@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type {
   Company,
@@ -288,27 +288,29 @@ export default function BillingPage({
                   </div>
                 ) : null}
 
-                <div className="flex flex-wrap items-center gap-3 rounded-xl2 border border-line bg-bone px-4 py-3">
-                  {taxMode === 'intra' ? (
-                    <Pill tone="sage">CGST + SGST</Pill>
-                  ) : (
-                    <Pill tone="copper">IGST</Pill>
-                  )}
-                  <span className="flex-1 text-[12.5px] text-ink-2">
+                <div className="rounded-xl2 border border-line bg-bone px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    {taxMode === 'intra' ? (
+                      <Pill tone="sage">CGST + SGST</Pill>
+                    ) : (
+                      <Pill tone="copper">IGST</Pill>
+                    )}
+                    <button
+                      onClick={() =>
+                        setOverride(taxMode === 'intra' ? 'inter' : override ? null : 'intra')
+                      }
+                      className="ml-auto shrink-0 rounded-full border border-line-2 px-3 py-1.5 text-[11.5px] font-bold text-ink-2 transition-colors hover:border-copper hover:text-copper"
+                    >
+                      {override ? 'Back to auto' : `Force ${taxMode === 'intra' ? 'IGST' : 'CGST+SGST'}`}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[12.5px] leading-snug text-ink-2">
                     {buyer
                       ? taxMode === 'intra'
                         ? `${buyer.state} — tax splits into Central and State.`
                         : `${buyer.state} — inter-state, so one IGST line.`
                       : 'Select a company to set the tax type.'}
-                  </span>
-                  <button
-                    onClick={() =>
-                      setOverride(taxMode === 'intra' ? 'inter' : override ? null : 'intra')
-                    }
-                    className="rounded-full border border-line-2 px-3 py-1 text-[11.5px] font-bold text-ink-2 transition-colors hover:border-copper hover:text-copper"
-                  >
-                    {override ? 'Back to auto' : `Force ${taxMode === 'intra' ? 'IGST' : 'CGST+SGST'}`}
-                  </button>
+                  </p>
                 </div>
               </div>
 
@@ -372,7 +374,7 @@ export default function BillingPage({
               title="Catalogue"
               subtitle={`${filtered.length} item${filtered.length === 1 ? '' : 's'} — tap to add; the listed rate is only a starting figure`}
               right={
-                <div className="w-56">
+                <div className="w-full sm:w-56">
                   <Input
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
@@ -382,8 +384,8 @@ export default function BillingPage({
                 </div>
               }
             />
-            <div className="scroll-thin max-h-[290px] overflow-y-auto p-4">
-              <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-3">
+            <div className="scroll-thin max-h-[52vh] overflow-y-auto p-3 sm:max-h-[290px] sm:p-4">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
                 {filtered.map((p) => (
                   <button
                     key={p.id}
@@ -436,7 +438,100 @@ export default function BillingPage({
                 No items yet — tap something from the catalogue above.
               </p>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+                {/* phone: a card per line, so nothing scrolls sideways */}
+                <div className="divide-y divide-line/70 lg:hidden">
+                  {items.map((it, idx) => {
+                    const line = calc.lines[idx]
+                    const isService = it.kind === 'service'
+                    const cell =
+                      'w-full rounded-lg border border-line bg-card px-2 py-1.5 text-[13px] tabular-nums text-ink outline-none transition-colors focus:border-copper'
+                    return (
+                      <div key={it.lineId} className="px-4 py-3.5">
+                        <div className="flex items-start gap-2">
+                          <span className="mt-2.5 w-4 shrink-0 text-[12px] font-bold text-muted">
+                            {idx + 1}
+                          </span>
+                          <input
+                            value={it.description}
+                            onChange={(e) => patchItem(it.lineId, { description: e.target.value })}
+                            className="min-w-0 flex-1 rounded-lg bg-transparent px-1 py-1.5 text-[13.5px] font-bold leading-snug text-ink outline-none transition-colors focus:bg-bone-2"
+                          />
+                          <button
+                            onClick={() => setItems((l) => l.filter((x) => x.lineId !== it.lineId))}
+                            aria-label="Remove line"
+                            className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted transition-colors active:bg-clay/12 active:text-clay"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                              <path
+                                d="M4 4l8 8M12 4l-8 8"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+
+                        <div className="mt-2 grid grid-cols-3 gap-2 pl-6">
+                          <label className="block">
+                            <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                              HSN
+                            </span>
+                            <input
+                              value={it.hsn}
+                              onChange={(e) => patchItem(it.lineId, { hsn: e.target.value })}
+                              className={`${cell} font-mono text-[12px]`}
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                              Qty
+                            </span>
+                            {isService ? (
+                              <div className={`${cell} text-muted`}>—</div>
+                            ) : (
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                min={0}
+                                step="any"
+                                value={it.qty}
+                                onChange={(e) => patchItem(it.lineId, { qty: Number(e.target.value) })}
+                                className={cell}
+                              />
+                            )}
+                          </label>
+                          <label className="block">
+                            <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                              {isService ? 'Amount' : 'Rate'}
+                            </span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              step="any"
+                              value={it.rate}
+                              onChange={(e) => patchItem(it.lineId, { rate: Number(e.target.value) })}
+                              className={cell}
+                            />
+                          </label>
+                        </div>
+
+                        <div className="mt-2.5 flex items-center justify-between pl-6 text-[12.5px]">
+                          <span className="text-muted">
+                            GST {plain(line?.tax ?? 0)} · {it.gstRate}%
+                          </span>
+                          <span className="font-bold tabular-nums text-ink">
+                            {plain(line?.taxable ?? 0)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div className="hidden overflow-x-auto lg:block">
                 <table className="w-full min-w-[720px] text-[13px]">
                   <thead>
                     <tr className="border-b border-line text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">
@@ -527,7 +622,8 @@ export default function BillingPage({
                     })}
                   </tbody>
                 </table>
-              </div>
+                </div>
+              </>
             )}
           </Card>
 
@@ -701,6 +797,25 @@ function PreviewOverlay({
   onPrint: () => void
 }) {
   const pdfRef = useRef<HTMLDivElement>(null)
+
+  // Shrink the 734px-wide bill to whatever width the screen actually has.
+  const fitRef = useRef<HTMLDivElement>(null)
+  const [fit, setFit] = useState(1)
+  useEffect(() => {
+    const measure = () => {
+      const el = fitRef.current
+      if (!el) return
+      const padding = window.innerWidth < 640 ? 24 : 48
+      setFit(Math.min(1, (el.clientWidth - padding) / 734))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    window.addEventListener('orientationchange', measure)
+    return () => {
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('orientationchange', measure)
+    }
+  }, [])
   const [busy, setBusy] = useState<'pdf' | 'share' | null>(null)
   const [toast, setToast] = useState('')
 
@@ -752,7 +867,7 @@ function PreviewOverlay({
 
   return createPortal(
     <div className="anim-fade fixed inset-0 z-50 flex flex-col bg-bone">
-      <header className="flex flex-wrap items-center gap-4 border-b border-line bg-card px-6 py-3.5">
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-card px-4 py-3 sm:px-6 sm:py-3.5">
         <button
           onClick={onClose}
           className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-bold text-ink-2 transition-colors hover:bg-bone-2 hover:text-ink"
@@ -773,7 +888,7 @@ function PreviewOverlay({
           <h2 className="font-display text-[19px] font-semibold leading-tight text-ink">
             Settle the price
           </h2>
-          <p className="truncate text-[12.5px] text-muted">
+          <p className="hidden truncate text-[12.5px] text-muted sm:block">
             Click any quantity, rate or amount on the bill and type the agreed figure — GST and the
             total follow it.
           </p>
@@ -825,9 +940,17 @@ function PreviewOverlay({
         </div>
       </header>
 
-      <div className="scroll-thin flex min-h-0 flex-1 flex-col-reverse overflow-y-auto xl:flex-row xl:overflow-hidden">
-        <div className="scroll-thin flex-1 overflow-y-auto bg-bone-2/60 px-6 py-8">
-          <div className="mx-auto w-[734px] max-w-full">
+      <div className="scroll-thin flex min-h-0 flex-1 flex-col overflow-y-auto xl:flex-row xl:overflow-hidden">
+        <div
+          ref={fitRef}
+          className="scroll-thin bg-bone-2/60 px-3 py-4 sm:px-6 sm:py-8 xl:min-h-0 xl:flex-1 xl:overflow-y-auto"
+        >
+          {/*
+            The bill is a fixed 194mm wide. On a phone it is shrunk to fit with
+            `zoom`, which reflows rather than just painting smaller, so the cells
+            stay tappable and the page height stays honest.
+          */}
+          <div className="mx-auto w-[734px]" style={{ zoom: fit }}>
             <InvoiceDocument
               meta={meta}
               seller={seller}
@@ -843,7 +966,7 @@ function PreviewOverlay({
           </div>
         </div>
 
-        <aside className="scroll-thin w-full shrink-0 overflow-y-auto border-l border-line bg-card px-5 py-6 xl:w-[350px]">
+        <aside className="scroll-thin w-full shrink-0 border-t border-line bg-card px-5 py-6 xl:w-[350px] xl:min-h-0 xl:overflow-y-auto xl:border-l xl:border-t-0">
           <div className="mb-5 flex items-center gap-2.5">
             {taxMode === 'intra' ? (
               <Pill tone="sage">CGST + SGST</Pill>
@@ -895,6 +1018,21 @@ function PreviewOverlay({
             Changes affect this bill only — the catalogue rate stays as it is.
           </p>
         </aside>
+      </div>
+
+      {/* phone: the running total stays put while the bill scrolls */}
+      <div className="flex items-center justify-between gap-3 border-t border-line bg-card px-4 py-2.5 xl:hidden">
+        <div>
+          <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-muted">
+            Total payable
+          </div>
+          <div className="font-display text-[20px] font-semibold leading-tight text-ink">
+            {money(calc.grandTotal)}
+          </div>
+        </div>
+        <Button size="sm" onClick={onPrint}>
+          Save &amp; Print
+        </Button>
       </div>
 
       {toast ? (
