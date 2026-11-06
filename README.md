@@ -234,6 +234,13 @@ Only needed for a second shop or a fresh Supabase project.
 
 ## Before the client uses it for real
 
+- **Check the GSTIN.** The firm block is transcribed from their own printed bill, and the GSTIN
+  on it — `33BHPFN5396M1ZS` — does not pass the check-digit test every GSTIN carries in its last
+  character (those fourteen characters give a final `2`, not `S`). The characters are clear on the
+  sample, so it is likely mistyped in their own Tally. A wrong GSTIN on a tax invoice costs the
+  buyer their input credit, so settle it against the GST registration certificate and correct it
+  in **Settings → Your firm → Edit**. The second phone number and the bank account number came
+  off the same sample and are worth a glance at the same time.
 - **Clear the demo data** once their own products are in: **Settings → Clear all seed data**. That
   removes the seeded catalogue, the sample companies and any test bills in one go.
 - **One shared login.** Everyone at the counter signs in as the same user, so there is no record of
