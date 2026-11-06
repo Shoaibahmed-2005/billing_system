@@ -52,7 +52,7 @@ Printing from a phone goes through the browser's own print dialog, same as deskt
 | Invoices | Every saved bill — search, reprint, edit, delete |
 | Products | The catalogue — name, HSN, unit, rate, GST slab |
 | Companies | The buyers — address, GSTIN, state |
-| Settings | Your own firm block, the buyer list, seed-data controls |
+| Settings | Your own firm block, the signature, the buyer list, seed-data controls |
 
 ## How it works
 
@@ -75,8 +75,13 @@ The billing screen shows which one is active and has a **Force** toggle if a bil
 other treatment.
 
 **The top-right block is typed by hand** — invoice number, date, mode/terms of payment, customer PO
-no., despatch through, destination, terms of delivery. Invoice numbering is deliberately manual,
-since the firm also writes bills by hand on a separate series.
+no., despatch through, destination, terms of delivery.
+
+The invoice number stays editable, because they run a second handwritten series and keep the two in
+step. A new bill opens with the next number already filled in — one past the highest sequence used
+so far this financial year, as `7/2026-2027` — and the field shows which bill was the previous one,
+so a wrong suggestion is obvious before it is saved. Reusing a number that is already on another
+bill is flagged.
 
 **GST is separated per HSN/SAC.** Every product carries its own HSN code and GST rate. Lines
 sharing an HSN are summed into one row of the tax summary — all the motors under 8501 give one
@@ -84,6 +89,15 @@ figure, all the bolts under 7318 another, exactly as the printed bill does.
 
 **Rounding** follows the bill: the grand total is rounded to the nearest rupee and the difference
 shows on the "Rounded Off" line.
+
+## The signature
+
+The authorised signature prints above "Authorised Signatory". **Settings → Your firm → Signature**
+uploads a replacement; the white background is cut out on the way in, so a photo of a signature on
+paper drops onto the ruled line without a white box around it.
+
+Each bill can leave it off — there is a **Print the signature** tick in the preview — for the times
+they print the sheet and sign it by hand.
 
 ## Bargaining in the preview
 
@@ -104,11 +118,27 @@ is never touched.
 Rates are held to four decimals internally so a bargained total divides back out cleanly: three
 units talked down to ₹10,000 print as rate 3,333.33 and amount 10,000.00, not 9,999.99.
 
+## Finding an old bill
+
+Both the Invoices and Repeat Bill screens are built the same way, because these pile up over years
+and a flat list stops being usable.
+
+The front page shows the year buttons, then the most recent 15 bills. Open a year and you get its
+months, April through March; open a month and you get its bills in the order they were written —
+**first of the month first**, not newest first.
+
+The search box follows you down: on the front page it searches every bill, inside a year only that
+year, inside a month only that month.
+
+**Download month PDF**, in any month view, puts that whole month into a single PDF, one bill per
+page — what the accountant wants for GST review. A big month takes a while; the button counts the
+pages as it goes.
+
 ## Repeat Bill
 
-For the companies that buy the same handful of parts over and over. The page groups past bills by
-company, with a search across company name, invoice number, PO number and the part names on the
-bill.
+For the companies that buy the same handful of parts over and over. The front page groups past
+bills by company, in alphabetical order — that is how they think about it ("what did we last send
+Kavin?"). The year and month buttons above are for when they remember the date instead.
 
 **Use again** opens that bill as a fresh copy: same buyer, same items, same prices, with the
 invoice number cleared and the date set to today — both still typed by hand, as always. Change
@@ -212,6 +242,17 @@ Only needed for a second shop or a fresh Supabase project.
 - **Back-ups.** Supabase's free tier keeps limited point-in-time history. If these invoices are the
   only copy of the firm's billing record, check what the plan actually retains.
 
+## Where the printed layout comes from
+
+Every column width and type size in `src/styles/invoice.css` was measured off the client's own
+printed sample, kept in the repo root as
+`Sample bill for you to check the allignement and missing columns.png`. The column rules were
+scanned out of that image and the type sizes derived from the measured width of known strings.
+Change them against a fresh measurement rather than by eye.
+
+The one structural thing worth knowing: the items table and the HSN summary share a single
+seven-column grid, which is what makes the two line up down the page.
+
 ## Known limits
 
 - The PDF is a picture of the bill, not selectable text. Fine for WhatsApp and printing; not for
@@ -232,7 +273,7 @@ src/
     gst.ts        CGST/SGST vs IGST, per-line and per-HSN totals, rounding
     words.ts      Rupees in words, Tally-style ("... Five Hundred and Seventy Nine Only")
     format.ts     Number formatting matched to the reference bill
-    pdf.ts        A4 PDF export and the WhatsApp hand-off
+    pdf.ts        A4 PDF export, the month batch, and the WhatsApp hand-off
     auth.ts       Sign in / sign out, and whether a sign-in is needed at all
     store.ts      Picks a backend and re-exports it
     backends/     local.ts (browser storage), supabase.ts, types.ts (the interface)
@@ -241,6 +282,10 @@ src/
     InvoiceDocument.tsx   The bill — printed, previewed and edited from this one component
     SignIn.tsx            The front door, shown only when Supabase is configured
     ...
+    invoiceNo.ts  Next number, previous bill, and the date/order of a bill
+    signature.ts  Cuts the white background off an uploaded signature
+  components/
+    BillArchive.tsx       Year -> month -> bills, shared by Invoices and Repeat
   styles/invoice.css      Print styles in mm — owns the printed document
   pages/                  One file per screen
 supabase/schema.sql       Tables, indexes and row level security

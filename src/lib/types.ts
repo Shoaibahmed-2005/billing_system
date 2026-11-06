@@ -55,6 +55,8 @@ export interface Invoice {
   items: InvoiceItem[]
   taxMode: TaxMode
   taxModeAuto: boolean
+  /** false when they intend to sign the printed sheet by hand */
+  showSignature?: boolean
   createdAt: string
   /** cached for the history list — recomputed on open */
   grandTotal: number
@@ -69,4 +71,6 @@ export interface Seller {
   state: string
   bankLine: string
   declaration: string[]
+  /** data URL or bundled asset for the authorised signature; '' prints none */
+  signature?: string
 }

@@ -12,13 +12,15 @@ import type {
 import { calcInvoice, taxModeForBuyer } from '../lib/gst'
 import { money, plain, round4, todayDotted } from '../lib/format'
 import { downloadBlob, invoiceFileName, invoiceToPdfBlob, sharePdf } from '../lib/pdf'
-import { newId, saveCompany, saveInvoice } from '../lib/store'
+import { newId, saveCompany, saveInvoice, saveProduct } from '../lib/store'
+import { isDuplicateNo, lastInvoiceOfYear, nextInvoiceNo } from '../lib/invoiceNo'
+import ProductForm from '../components/ProductForm'
 import InvoiceDocument from '../components/InvoiceDocument'
 import CompanyForm from '../components/CompanyForm'
 import { Button, Card, CardHead, Field, Input, Modal, Pill, Select } from '../components/ui'
 
-const emptyMeta = (): InvoiceMeta => ({
-  invoiceNo: '',
+const emptyMeta = (invoiceNo = ''): InvoiceMeta => ({
+  invoiceNo,
   dated: todayDotted(),
   modeTerms: '100% Against Service',
   customerPoNo: '',
@@ -43,28 +45,41 @@ const toItem = (p: Product): InvoiceItem => ({
 export default function BillingPage({
   products,
   companies,
+  invoices,
   seller,
   draft,
   mode,
   onCompaniesChanged,
+  onProductsChanged,
   onSaved,
   onPrint,
 }: {
   products: Product[]
   companies: Company[]
+  invoices: Invoice[]
   seller: Seller
   draft: Invoice | null
   mode: 'new' | 'edit' | 'repeat'
   onCompaniesChanged: () => void
+  onProductsChanged: () => void
   onSaved: (inv: Invoice) => void
   onPrint: (payload: {
     meta: InvoiceMeta
     buyer: Company | null
     items: InvoiceItem[]
     taxMode: TaxMode
+    showSignature: boolean
   }) => void
 }) {
-  const [meta, setMeta] = useState<InvoiceMeta>(draft?.meta ?? emptyMeta())
+  // A new or repeated bill opens with the next number already filled in; an
+  // existing one keeps whatever it was saved with.
+  const suggestedNo = useState(() => nextInvoiceNo(invoices))[0]
+  const previousBill = useState(() => lastInvoiceOfYear(invoices))[0]
+  const [meta, setMeta] = useState<InvoiceMeta>(() =>
+    mode === 'edit' && draft
+      ? draft.meta
+      : { ...(draft?.meta ?? emptyMeta()), invoiceNo: draft?.meta.invoiceNo || suggestedNo },
+  )
   const [buyerId, setBuyerId] = useState<string>(draft?.buyer.id ?? '')
   const [items, setItems] = useState<InvoiceItem[]>(draft?.items ?? [])
   const [override, setOverride] = useState<TaxMode | null>(
@@ -75,6 +90,8 @@ export default function BillingPage({
   const [addCompany, setAddCompany] = useState(false)
   const [editCompany, setEditCompany] = useState(false)
   const [preview, setPreview] = useState(false)
+  const [addProduct, setAddProduct] = useState(false)
+  const [showSignature, setShowSignature] = useState(draft?.showSignature ?? true)
   const [flash, setFlash] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null)
 
   const buyer = useMemo(
@@ -150,6 +167,7 @@ export default function BillingPage({
     items,
     taxMode,
     taxModeAuto: override === null,
+    showSignature,
     createdAt: draft?.createdAt ?? new Date().toISOString(),
     grandTotal: calc.grandTotal,
   })
@@ -164,7 +182,7 @@ export default function BillingPage({
     await saveInvoice(inv)
     onSaved(inv)
     say('ok', `Invoice ${inv.meta.invoiceNo} saved.`)
-    if (thenPrint) onPrint({ meta, buyer, items, taxMode })
+    if (thenPrint) onPrint({ meta, buyer, items, taxMode, showSignature })
     return true
   }
 
@@ -175,7 +193,7 @@ export default function BillingPage({
   }
 
   const clearAll = () => {
-    setMeta(emptyMeta())
+    setMeta(emptyMeta(nextInvoiceNo(invoices)))
     setBuyerId('')
     setItems([])
     setOverride(null)
@@ -321,6 +339,19 @@ export default function BillingPage({
                     onChange={(e) => setMetaField('invoiceNo', e.target.value)}
                     placeholder="145/2026-2027"
                   />
+                  {isDuplicateNo(invoices, meta.invoiceNo, invoiceId) ? (
+                    <span className="mt-1 block text-[11.5px] font-semibold text-clay">
+                      Already used on another bill.
+                    </span>
+                  ) : previousBill ? (
+                    <span className="mt-1 block text-[11.5px] text-muted">
+                      Previous: <b className="font-semibold text-ink-2">{previousBill.meta.invoiceNo}</b>
+                      {' · '}
+                      {previousBill.buyer.name}
+                    </span>
+                  ) : (
+                    <span className="mt-1 block text-[11.5px] text-muted">First bill of the year.</span>
+                  )}
                 </Field>
                 <Field label="Dated">
                   <Input
@@ -374,13 +405,23 @@ export default function BillingPage({
               title="Catalogue"
               subtitle={`${filtered.length} item${filtered.length === 1 ? '' : 's'} — tap to add; the listed rate is only a starting figure`}
               right={
-                <div className="w-full sm:w-56">
-                  <Input
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="Search name or HSN…"
-                    className="h-10 py-2"
-                  />
+                <div className="flex w-full items-center gap-2 sm:w-auto">
+                  <div className="min-w-0 flex-1 sm:w-56 sm:flex-none">
+                    <Input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search name or HSN…"
+                      className="h-10 py-2"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 shrink-0"
+                    onClick={() => setAddProduct(true)}
+                  >
+                    + New product
+                  </Button>
                 </div>
               }
             />
@@ -693,6 +734,7 @@ export default function BillingPage({
                     buyer={buyer}
                     items={items}
                     calc={calc}
+                    signature={showSignature ? seller.signature ?? null : null}
                     className="inv-screen"
                   />
                 </div>
@@ -712,16 +754,38 @@ export default function BillingPage({
           calc={calc}
           taxMode={taxMode}
           onPatchItem={patchItem}
+          signature={showSignature ? seller.signature ?? null : null}
+          hasSignature={Boolean(seller.signature)}
+          showSignature={showSignature}
+          onToggleSignature={() => setShowSignature((v) => !v)}
           onBeginTotalEdit={beginTotalEdit}
           onSetTotal={setTotal}
           onClose={() => setPreview(false)}
           onSave={() => save(false)}
           onPrint={async () => {
             const ok = await save(false)
-            if (ok) onPrint({ meta, buyer, items, taxMode })
+            if (ok) onPrint({ meta, buyer, items, taxMode, showSignature })
           }}
         />
       ) : null}
+
+      <Modal
+        open={addProduct}
+        onClose={() => setAddProduct(false)}
+        title="New product"
+        subtitle="Added to the catalogue and dropped straight onto this bill."
+      >
+        <ProductForm
+          onCancel={() => setAddProduct(false)}
+          onSave={async (p) => {
+            await saveProduct(p)
+            onProductsChanged()
+            addItem(p)
+            setAddProduct(false)
+            say('ok', `${p.name} added to the catalogue.`)
+          }}
+        />
+      </Modal>
 
       <Modal
         open={addCompany}
@@ -777,6 +841,10 @@ function PreviewOverlay({
   calc,
   taxMode,
   onPatchItem,
+  signature,
+  hasSignature,
+  showSignature,
+  onToggleSignature,
   onBeginTotalEdit,
   onSetTotal,
   onClose,
@@ -790,6 +858,10 @@ function PreviewOverlay({
   calc: ReturnType<typeof calcInvoice>
   taxMode: TaxMode
   onPatchItem: (lineId: string, patch: Partial<InvoiceItem>) => void
+  signature: string | null
+  hasSignature: boolean
+  showSignature: boolean
+  onToggleSignature: () => void
   onBeginTotalEdit: () => void
   onSetTotal: (target: number, which: 'sub' | 'grand') => void
   onClose: () => void
@@ -958,6 +1030,7 @@ function PreviewOverlay({
               items={items}
               calc={calc}
               editable
+              signature={signature}
               onPatchItem={onPatchItem}
               onBeginTotalEdit={onBeginTotalEdit}
               onSetTotal={onSetTotal}
@@ -1010,6 +1083,22 @@ function PreviewOverlay({
             </div>
           </div>
 
+          {hasSignature ? (
+            <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-xl2 border border-line bg-bone px-4 py-3">
+              <input
+                type="checkbox"
+                checked={showSignature}
+                onChange={onToggleSignature}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#b4713a]"
+              />
+              <span className="text-[12.5px] leading-snug text-ink-2">
+                <b className="font-semibold text-ink">Print the signature</b>
+                <br />
+                Turn it off to leave the space blank and sign the sheet by hand.
+              </span>
+            </label>
+          ) : null}
+
           <p className="mt-5 text-[12px] leading-relaxed text-muted">
             Type over any quantity, rate or amount. Putting a figure on <b>Sub Total</b> or{' '}
             <b>Total</b> spreads it back across the lines in proportion.
@@ -1055,7 +1144,14 @@ function PreviewOverlay({
           zIndex: -1,
         }}
       >
-        <InvoiceDocument meta={meta} seller={seller} buyer={buyer} items={items} calc={calc} />
+        <InvoiceDocument
+          meta={meta}
+          seller={seller}
+          buyer={buyer}
+          items={items}
+          calc={calc}
+          signature={signature}
+        />
       </div>
     </div>,
     document.body,

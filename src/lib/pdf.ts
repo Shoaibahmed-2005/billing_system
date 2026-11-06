@@ -57,6 +57,51 @@ export const invoiceToPdfBlob = async (node: HTMLElement): Promise<Blob> => {
   return pdf.output('blob')
 }
 
+/**
+ * Several bills into one PDF, a page each — what they send the accountant at
+ * the end of a month. `onProgress` drives the counter in the UI, since a full
+ * month of bills takes a while to rasterise.
+ */
+export const invoicesToPdfBlob = async (
+  nodes: HTMLElement[],
+  onProgress?: (done: number, total: number) => void,
+): Promise<Blob> => {
+  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+    import('html2canvas'),
+    import('jspdf'),
+  ])
+
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+  const marginX = 8
+
+  for (let i = 0; i < nodes.length; i++) {
+    const canvas = await html2canvas(nodes[i], {
+      scale: 2,
+      backgroundColor: '#ffffff',
+      useCORS: true,
+      logging: false,
+    })
+    if (i > 0) pdf.addPage()
+    const width = A4.w - marginX * 2
+    const height = (canvas.height / canvas.width) * width
+    pdf.addImage(
+      canvas.toDataURL('image/png', 1),
+      'PNG',
+      marginX,
+      7,
+      width,
+      Math.min(height, A4.h - 14),
+      undefined,
+      'FAST',
+    )
+    onProgress?.(i + 1, nodes.length)
+    // let the progress counter paint between pages
+    await new Promise((r) => setTimeout(r, 0))
+  }
+
+  return pdf.output('blob')
+}
+
 export const downloadBlob = (blob: Blob, fileName: string) => {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')

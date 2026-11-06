@@ -1,7 +1,15 @@
 /* =========================================================================
    Printed invoice — a 1:1 reproduction of the reference bill.
-   Everything here is in mm so the printed sheet matches regardless of DPI.
-   Do not restyle with Tailwind: these rules own the printed document.
+
+   Every width and type size here was measured off the client's own printed
+   sample (see "Sample bill ..." in the repo root): the column rules were
+   scanned out of the scan, and the type sizes derived from the measured
+   advance width of known strings. Change them against a fresh measurement,
+   not by eye.
+
+   The one structural thing worth knowing: the items table and the HSN
+   summary table share ONE seven-column grid, which is why the two tables
+   line up down the page. The summary just spans its cells differently.
    ========================================================================= */
 
 .inv,
@@ -11,31 +19,30 @@
 
 .inv {
   --line: #000;
-  --bw: 0.7pt;
+  --bw: 0.8pt;
 
-  width: 194mm;
-  min-height: 283mm;
+  width: 186mm;
+  min-height: 275mm;
   display: flex;
   flex-direction: column;
   background: #fff;
   color: #000;
   font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
-  font-size: 8.4pt;
-  line-height: 1.28;
+  font-size: 10.4pt;
+  line-height: 1.15;
   -webkit-font-smoothing: antialiased;
 }
 
 .inv-title {
   text-align: center;
-  font-size: 9.5pt;
+  font-size: 12.5pt;
   font-weight: 700;
-  letter-spacing: 0.1pt;
 }
 
 .inv-subtitle {
   text-align: center;
-  font-size: 6.6pt;
-  margin-bottom: 1.1mm;
+  font-size: 9pt;
+  margin-bottom: 1.2mm;
 }
 
 .inv-box {
@@ -53,20 +60,20 @@
 }
 
 .inv-head-left {
-  width: 51.3%;
+  width: 52.5%;
   border-right: var(--bw) solid var(--line);
   display: flex;
   flex-direction: column;
 }
 
 .inv-head-right {
-  width: 48.7%;
+  width: 47.5%;
   display: flex;
   flex-direction: column;
 }
 
 .party {
-  padding: 1.2mm 1.6mm 1.4mm;
+  padding: 1mm 1.6mm 1.2mm;
 }
 
 .party-seller {
@@ -78,20 +85,14 @@
 }
 
 .seller-name {
-  font-size: 11.5pt;
+  font-size: 13pt;
   font-weight: 700;
-  line-height: 1.15;
-  margin-bottom: 0.4mm;
+  line-height: 1.1;
+  margin-bottom: 0.5mm;
 }
 
-.party-label {
-  margin-bottom: 0.2mm;
-}
-
-.party-name {
-  font-weight: 400;
-}
-
+.party-label,
+.party-name,
 .party-line {
   white-space: pre-wrap;
 }
@@ -109,34 +110,34 @@
 }
 
 .meta-cell {
-  padding: 1.1mm 1.6mm 1.2mm;
+  padding: 1mm 1.6mm 1.1mm;
   flex: 1;
-  min-height: 9.4mm;
+  min-height: 10.5mm;
 }
 
 .meta-cell.split-left {
-  width: 41%;
+  width: 41.6%;
   flex: none;
   border-right: var(--bw) solid var(--line);
 }
 
 .meta-cell.split-right {
-  width: 59%;
+  width: 58.4%;
   flex: none;
   text-align: center;
 }
 
-.meta-label {
+.meta-label,
+.meta-value {
   display: block;
 }
 
 .meta-value {
-  display: block;
-  min-height: 3.6mm;
+  min-height: 4.2mm;
 }
 
 .meta-row.tall .meta-cell {
-  min-height: 11.6mm;
+  min-height: 13mm;
 }
 
 /* ---------------------------------------------------------------- items -- */
@@ -162,7 +163,7 @@ table.items-fill {
 table.items th,
 table.items td {
   border-left: var(--bw) solid var(--line);
-  padding: 0.7mm 1.4mm;
+  padding: 0.5mm 1.4mm;
   vertical-align: top;
   font-weight: 400;
 }
@@ -177,40 +178,43 @@ table.items thead th {
   border-bottom: var(--bw) solid var(--line);
   font-weight: 700;
   text-align: center;
-  padding: 1mm 1.4mm;
+  padding: 1.1mm 1.4mm;
 }
 
+/* ---- the shared seven-column grid, measured off the printed sample ---- */
+
 .c-sl {
-  width: 5.5%;
+  width: 5.8%;
   text-align: center;
 }
 .c-desc {
-  width: 46%;
+  width: 46.74%;
+  text-align: left;
 }
 .c-hsn {
-  width: 9%;
+  width: 10.05%;
   text-align: center;
 }
 .c-qty {
-  width: 10%;
+  width: 9.43%;
   text-align: center;
 }
 .c-rate {
-  width: 8.5%;
-  text-align: right;
+  width: 10.16%;
+  text-align: center;
 }
 .c-per {
-  width: 5.5%;
+  width: 6.22%;
   text-align: center;
 }
 .c-amt {
-  width: 15.5%;
+  width: 11.6%;
   text-align: right;
 }
 
 tr.item td {
-  padding-top: 0.9mm;
-  padding-bottom: 0.9mm;
+  padding-top: 0.54mm;
+  padding-bottom: 0.54mm;
 }
 
 tr.filler td {
@@ -250,19 +254,20 @@ tr.grand td.c-amt {
 
 .amount-words {
   border-top: var(--bw) solid var(--line);
-  padding: 1mm 1.6mm 1.4mm;
+  padding: 0.9mm 1.6mm 1.2mm;
 }
 
-.amount-words .label {
+.amount-words .label,
+.amount-words .value {
   display: block;
 }
 
 .amount-words .value {
-  display: block;
   font-weight: 700;
 }
 
 /* ------------------------------------------------------------ hsn table -- */
+/* Same seven columns as the items table, so the two line up down the page. */
 
 table.hsn {
   width: 100%;
@@ -274,7 +279,7 @@ table.hsn {
 table.hsn th,
 table.hsn td {
   border: var(--bw) solid var(--line);
-  padding: 0.8mm 1.4mm;
+  padding: 0.6mm 1.4mm;
   font-weight: 400;
 }
 
@@ -296,27 +301,15 @@ table.hsn thead tr:first-child > * {
 }
 
 .h-hsn {
-  width: 44%;
   text-align: left;
 }
 .h-tv {
-  width: 14%;
   text-align: right;
 }
 .h-rate {
-  width: 8.5%;
-  text-align: center;
+  text-align: left;
 }
 .h-amt {
-  width: 12.75%;
-  text-align: right;
-}
-.h-rate-wide {
-  width: 11%;
-  text-align: center;
-}
-.h-amt-wide {
-  width: 17%;
   text-align: right;
 }
 
@@ -331,7 +324,7 @@ table.hsn tr.hsn-total td {
 
 .tax-words {
   border-top: var(--bw) solid var(--line);
-  padding: 1mm 1.6mm;
+  padding: 0.9mm 1.6mm;
 }
 
 .tax-words b {
@@ -344,8 +337,8 @@ table.hsn tr.hsn-total td {
   border-top: var(--bw) solid var(--line);
   display: flex;
   align-items: flex-end;
-  min-height: 30mm;
-  padding: 1.4mm 1.6mm 1mm;
+  min-height: 24mm;
+  padding: 1.2mm 1.6mm 1mm;
 }
 
 .declaration {
@@ -354,12 +347,12 @@ table.hsn tr.hsn-total td {
 }
 
 .declaration .d-title {
-  font-size: 6.6pt;
+  font-size: 7.5pt;
 }
 
 .declaration .d-line {
-  font-size: 6.4pt;
-  line-height: 1.3;
+  font-size: 7pt;
+  line-height: 1.25;
 }
 
 .sign {
@@ -369,22 +362,37 @@ table.hsn tr.hsn-total td {
   flex-direction: column;
   justify-content: space-between;
   align-self: stretch;
-  padding-top: 0.6mm;
+  padding-top: 0.5mm;
 }
 
 .sign .for-name {
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .sign .signatory {
-  font-size: 7.6pt;
+  font-size: 10pt;
+}
+
+/* the uploaded signature sits between the two lines */
+.sign-slot {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 11mm;
+  padding: 0.5mm 0;
+}
+
+.sign-slot img {
+  max-height: 13mm;
+  max-width: 85%;
+  object-fit: contain;
 }
 
 .bank {
   border-top: var(--bw) solid var(--line);
-  padding: 1.1mm 1.6mm;
+  padding: 1mm 1.6mm;
   text-align: center;
-  font-size: 7.8pt;
 }
 
 /* ------------------------------------------------------- screen preview -- */
@@ -398,7 +406,7 @@ table.hsn tr.hsn-total td {
 @media print {
   @page {
     size: A4 portrait;
-    margin: 7mm 8mm;
+    margin: 11mm 12mm;
   }
 
   html,
@@ -429,7 +437,7 @@ table.hsn tr.hsn-total td {
   }
 
   .inv-box {
-    min-height: 272mm;
+    min-height: 263mm;
   }
 }
 
@@ -447,6 +455,7 @@ table.hsn tr.hsn-total td {
   margin: 0;
   width: 100%;
   outline: none;
+  text-align: inherit;
   transition:
     border-color 0.15s ease,
     background-color 0.15s ease;
@@ -466,6 +475,10 @@ table.hsn tr.hsn-total td {
   text-align: right;
 }
 
+.inv-in-c {
+  text-align: center;
+}
+
 .inv-in-qty {
   width: 2.8em;
   text-align: right;
@@ -474,14 +487,15 @@ table.hsn tr.hsn-total td {
 .qty-wrap {
   display: inline-flex;
   align-items: baseline;
+  justify-content: center;
   gap: 0.3em;
 }
 
 .inv-editable tr.item td.c-qty,
 .inv-editable tr.item td.c-rate,
 .inv-editable tr.item td.c-amt {
-  padding-top: 0.6mm;
-  padding-bottom: 0.6mm;
+  padding-top: 0.35mm;
+  padding-bottom: 0.35mm;
 }
 
 @media print {

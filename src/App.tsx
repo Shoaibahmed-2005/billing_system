@@ -31,6 +31,7 @@ interface PrintPayload {
   buyer: Company | null
   items: InvoiceItem[]
   taxMode: TaxMode
+  showSignature: boolean
 }
 
 type DraftMode = 'new' | 'edit' | 'repeat'
@@ -203,10 +204,12 @@ export default function App() {
                 key={billingKey}
                 products={products}
                 companies={companies}
+                invoices={invoices}
                 seller={seller}
                 draft={draft}
                 mode={draftMode}
                 onCompaniesChanged={refreshCompanies}
+                onProductsChanged={refreshProducts}
                 onSaved={() => {
                   refreshInvoices()
                   setDraftMode('edit')
@@ -217,12 +220,14 @@ export default function App() {
             {page === 'repeat' && (
               <RepeatPage
                 invoices={invoices}
+                seller={seller}
                 onRepeat={(inv) => openBilling(asRepeat(inv), 'repeat')}
               />
             )}
             {page === 'invoices' && (
               <InvoicesPage
                 invoices={invoices}
+                seller={seller}
                 onChanged={refreshInvoices}
                 onEdit={(inv) => openBilling(inv, 'edit')}
                 onRepeat={(inv) => openBilling(asRepeat(inv), 'repeat')}
@@ -286,6 +291,7 @@ export default function App() {
               buyer={printPayload.buyer}
               items={printPayload.items}
               calc={calcInvoice(printPayload.items, printPayload.taxMode)}
+              signature={printPayload.showSignature ? seller.signature ?? null : null}
             />
           ) : null}
         </div>,

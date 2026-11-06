@@ -11,6 +11,11 @@ interface Props {
   items: InvoiceItem[]
   calc: InvoiceCalc
   className?: string
+  /**
+   * The authorised signature to print. Left out when they would rather sign
+   * the sheet by hand after printing.
+   */
+  signature?: string | null
   /** turns the Quantity / Rate / Amount cells into inputs for bargaining */
   editable?: boolean
   onPatchItem?: (lineId: string, patch: Partial<InvoiceItem>) => void
@@ -36,6 +41,7 @@ export default function InvoiceDocument({
   items,
   calc,
   className = '',
+  signature = null,
   editable = false,
   onPatchItem,
   onBeginTotalEdit,
@@ -143,7 +149,7 @@ export default function InvoiceDocument({
             <Cols />
             <thead>
               <tr>
-                <th className="c-sl">Sl.No.</th>
+                <th className="c-sl">Sl.No</th>
                 <th className="c-desc">Description of Goods</th>
                 <th className="c-hsn">HSN/SAC</th>
                 <th className="c-qty">Quantity</th>
@@ -328,26 +334,14 @@ export default function InvoiceDocument({
         </div>
 
         {/* ---------------------------------------------------- hsn table */}
+        {/*
+          Same seven columns as the items table above — that shared grid is
+          why the two tables line up on the printed sheet. The summary just
+          spans them differently: HSN/SAC over cols 1-2, Taxable Value on
+          col 3, and a tax pair on cols 4-5 and 6-7.
+        */}
         <table className="hsn">
-          {intra ? (
-            <colgroup>
-              <col style={{ width: '2%' }} />
-              <col style={{ width: '42%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '8.5%' }} />
-              <col style={{ width: '12.75%' }} />
-              <col style={{ width: '8.5%' }} />
-              <col style={{ width: '12.25%' }} />
-            </colgroup>
-          ) : (
-            <colgroup>
-              <col style={{ width: '2%' }} />
-              <col style={{ width: '54%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '17%' }} />
-            </colgroup>
-          )}
+          <Cols />
           <thead>
             <tr>
               <th colSpan={2}>HSN/SAC</th>
@@ -356,21 +350,32 @@ export default function InvoiceDocument({
                 <br />
                 Value
               </th>
-              <th colSpan={2}>{intra ? 'Central Tax' : 'Integrated Tax'}</th>
-              {intra ? <th colSpan={2}>State Tax</th> : null}
+              {intra ? (
+                <>
+                  <th colSpan={2}>Central Tax</th>
+                  <th colSpan={2}>State Tax</th>
+                </>
+              ) : (
+                <th colSpan={4}>Integrated Tax</th>
+              )}
             </tr>
             <tr>
               <td />
               <td />
               <td />
-              <th>Rate</th>
-              <th>Amount</th>
               {intra ? (
                 <>
                   <th>Rate</th>
                   <th>Amount</th>
+                  <th>Rate</th>
+                  <th>Amount</th>
                 </>
-              ) : null}
+              ) : (
+                <>
+                  <th colSpan={2}>Rate</th>
+                  <th colSpan={2}>Amount</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -379,34 +384,50 @@ export default function InvoiceDocument({
                 <td />
                 <td className="h-hsn">{r.hsn}</td>
                 <td className="h-tv">{plain(r.taxable)}</td>
-                <td className="h-rate">{intra ? `${r.gstRate / 2}%` : `${r.gstRate}%`}</td>
-                <td className="h-amt">{plain(intra ? r.cgst : r.igst)}</td>
                 {intra ? (
                   <>
                     <td className="h-rate">{r.gstRate / 2}%</td>
+                    <td className="h-amt">{plain(r.cgst)}</td>
+                    <td className="h-rate">{r.gstRate / 2}%</td>
                     <td className="h-amt">{plain(r.sgst)}</td>
                   </>
-                ) : null}
+                ) : (
+                  <>
+                    <td className="h-rate" colSpan={2}>
+                      {r.gstRate}%
+                    </td>
+                    <td className="h-amt" colSpan={2}>
+                      {plain(r.igst)}
+                    </td>
+                  </>
+                )}
               </tr>
             ))}
             <tr className="hsn-total">
               <td />
               <td className="total-label">Total</td>
               <td className="h-tv">{plain(calc.subTotal)}</td>
-              <td className="h-rate" />
-              <td className="h-amt">{plain(intra ? calc.cgst : calc.igst)}</td>
               {intra ? (
                 <>
                   <td className="h-rate" />
+                  <td className="h-amt">{plain(calc.cgst)}</td>
+                  <td className="h-rate" />
                   <td className="h-amt">{plain(calc.sgst)}</td>
                 </>
-              ) : null}
+              ) : (
+                <>
+                  <td className="h-rate" colSpan={2} />
+                  <td className="h-amt" colSpan={2}>
+                    {plain(calc.igst)}
+                  </td>
+                </>
+              )}
             </tr>
           </tbody>
         </table>
 
         <div className="tax-words">
-          Tax Amount (In Words) : <b>{taxInWords(calc.totalTax)}</b>
+          Tax Amount (in Words) : <b>{taxInWords(calc.totalTax)}</b>
         </div>
 
         {/* ------------------------------------------------------- footer */}
@@ -421,6 +442,9 @@ export default function InvoiceDocument({
           </div>
           <div className="sign">
             <div className="for-name">for {toTitle(seller.name)}</div>
+            <div className="sign-slot">
+              {signature ? <img src={signature} alt="" /> : null}
+            </div>
             <div className="signatory">Authorised Signatory</div>
           </div>
         </div>

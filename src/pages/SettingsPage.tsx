@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Company, Seller } from '../lib/types'
 import {
   clearAllData,
@@ -7,6 +7,8 @@ import {
   saveCompany,
   saveSeller,
 } from '../lib/store'
+import { SELLER } from '../lib/seller'
+import { prepareSignature } from '../lib/signature'
 import CompanyForm from '../components/CompanyForm'
 import { Button, Card, CardHead, Field, Input, Modal, Pill, TextArea } from '../components/ui'
 
@@ -249,6 +251,7 @@ function SellerCard({
             <Info label="Home state" value={`${seller.state} — buyers here get CGST + SGST`} />
             <Info label="Outside the state" value="Puducherry and the rest get IGST" />
             <Info label="Bank" value={seller.bankLine.replace('Bank Details : ', '')} />
+            <SignatureBox seller={seller} onSave={onSave} />
           </div>
         </div>
       ) : (
@@ -334,6 +337,92 @@ function Stat({ label, value }: { label: string; value: number }) {
       <div className="mt-1 text-[11.5px] font-bold uppercase tracking-[0.09em] text-muted">
         {label}
       </div>
+    </div>
+  )
+}
+
+/* -------------------------------------------------------------- signature */
+
+/**
+ * The signature printed above "Authorised Signatory". Uploading one strips its
+ * white background first, so a photo of a signature on paper still drops
+ * cleanly onto the ruled line.
+ */
+function SignatureBox({ seller, onSave }: { seller: Seller; onSave: (s: Seller) => void }) {
+  const file = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const pick = async (f: File | undefined) => {
+    if (!f) return
+    setBusy(true)
+    setError('')
+    try {
+      const { dataUrl } = await prepareSignature(f)
+      onSave({ ...seller, signature: dataUrl })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not use that image.')
+    } finally {
+      setBusy(false)
+      if (file.current) file.current.value = ''
+    }
+  }
+
+  return (
+    <div>
+      <div className="text-[10.5px] font-bold uppercase tracking-[0.09em] text-muted">
+        Signature
+      </div>
+
+      <div className="mt-1.5 flex items-center gap-3">
+        <div className="grid h-[52px] w-[120px] shrink-0 place-items-center rounded-xl2 border border-line bg-card px-2">
+          {seller.signature ? (
+            <img src={seller.signature} alt="Signature" className="max-h-10 max-w-full object-contain" />
+          ) : (
+            <span className="text-[11px] text-muted">None</span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => file.current?.click()}>
+            {busy ? 'Reading…' : seller.signature ? 'Replace' : 'Upload'}
+          </Button>
+          {seller.signature ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onSave({ ...seller, signature: '' })}
+            >
+              Remove
+            </Button>
+          ) : SELLER.signature ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => onSave({ ...seller, signature: SELLER.signature })}
+            >
+              Use the original
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      <input
+        ref={file}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(e) => void pick(e.target.files?.[0])}
+      />
+
+      {error ? (
+        <p className="mt-1.5 text-[11.5px] font-medium text-clay">{error}</p>
+      ) : (
+        <p className="mt-1.5 text-[11.5px] leading-snug text-muted">
+          Printed above "Authorised Signatory". Each bill can also leave it off, to be signed by
+          hand.
+        </p>
+      )}
     </div>
   )
 }
