@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Company, InvoiceItem, InvoiceMeta, Seller } from '../lib/types'
 import type { InvoiceCalc } from '../lib/gst'
 import { grouped, plain, qtyText, rateText, round4 } from '../lib/format'
+import { COL, HSN_COL, columnScale, fitScale, scaleStyle } from '../lib/fit'
 import { rupeesInWords, taxInWords } from '../lib/words'
 
 interface Props {
@@ -48,6 +49,65 @@ export default function InvoiceDocument({
   onSetTotal,
 }: Props) {
   const intra = calc.taxMode === 'intra'
+
+  /*
+    Type sizes, settled before a single cell is drawn.
+
+    A figure that is wider than its column used to print straight over the
+    rule — any total past a lakh did it, and the client noticed. So every
+    column is measured against its longest figure and, if that will not fit,
+    the whole column steps down to a size that does. On an ordinary bill
+    nothing moves; "2,11,83,445.00" brings the Amount column down a quarter.
+
+    Per column, not per cell: a column with two or three type sizes running
+    down it looks like a fault even when every figure is inside its rules.
+  */
+  const goods = items.filter((i) => i.kind !== 'service')
+  const taxWidth = intra ? Math.min(HSN_COL.amount, HSN_COL.amount2) : HSN_COL.wideAmount
+  const sz = {
+    hsn: scaleStyle(columnScale(items.map((i) => i.hsn), COL.hsn)),
+    qty: scaleStyle(columnScale(goods.map((i) => qtyText(i.qty, i.unit)), COL.qty)),
+    rate: scaleStyle(columnScale(goods.map((i) => rateText(i.rate)), COL.rate)),
+    per: scaleStyle(columnScale(goods.map((i) => i.per), COL.per)),
+    /* the Amount column runs the whole way down, items and totals alike */
+    amt: scaleStyle(
+      Math.min(
+        columnScale(
+          [
+            ...calc.lines.map((l) => grouped(l.taxable)),
+            plain(calc.subTotal),
+            plain(calc.roundOff),
+            ...(intra ? [plain(calc.cgst), plain(calc.sgst)] : [plain(calc.igst)]),
+          ],
+          COL.amt,
+        ),
+        fitScale(grouped(calc.grandTotal), COL.amt, 700),
+      ),
+    ),
+    taxable: scaleStyle(
+      Math.min(
+        columnScale(calc.hsnRows.map((r) => plain(r.taxable)), HSN_COL.taxable),
+        fitScale(plain(calc.subTotal), HSN_COL.taxable, 700),
+      ),
+    ),
+    /* CGST and SGST share a size, so the same figure is never printed twice
+       at two sizes next to each other */
+    tax: scaleStyle(
+      Math.min(
+        columnScale(
+          intra
+            ? calc.hsnRows.flatMap((r) => [plain(r.cgst), plain(r.sgst)])
+            : calc.hsnRows.map((r) => plain(r.igst)),
+          taxWidth,
+        ),
+        columnScale(
+          intra ? [plain(calc.cgst), plain(calc.sgst)] : [plain(calc.igst)],
+          taxWidth,
+          700,
+        ),
+      ),
+    ),
+  }
 
   const patch = (lineId: string, p: Partial<InvoiceItem>) => onPatchItem?.(lineId, p)
 
@@ -163,12 +223,19 @@ export default function InvoiceDocument({
                 const line = calc.lines[idx]
                 const isService = it.kind === 'service'
                 const amount = line?.taxable ?? 0
+                // measured against the column so a lakh-scale figure shrinks
+                // rather than running over the rule
+                const qtyStr = isService ? '' : qtyText(it.qty, it.unit)
+                const rateStr = isService ? '' : rateText(it.rate)
+                const amtStr = grouped(amount)
                 return (
                   <tr className="item" key={it.lineId}>
                     <td className="c-sl">{idx + 1}</td>
                     <td className="c-desc">{it.description}</td>
-                    <td className="c-hsn">{it.hsn}</td>
-                    <td className="c-qty">
+                    <td className="c-hsn" style={sz.hsn}>
+                      {it.hsn}
+                    </td>
+                    <td className="c-qty" style={sz.qty}>
                       {isService ? (
                         ''
                       ) : editable ? (
@@ -182,10 +249,10 @@ export default function InvoiceDocument({
                           <span>{it.unit}</span>
                         </span>
                       ) : (
-                        qtyText(it.qty, it.unit)
+                        qtyStr
                       )}
                     </td>
-                    <td className="c-rate">
+                    <td className="c-rate" style={sz.rate}>
                       {isService ? (
                         ''
                       ) : editable ? (
@@ -196,11 +263,13 @@ export default function InvoiceDocument({
                           className="inv-in inv-in-r"
                         />
                       ) : (
-                        rateText(it.rate)
+                        rateStr
                       )}
                     </td>
-                    <td className="c-per">{isService ? '' : it.per}</td>
-                    <td className="c-amt">
+                    <td className="c-per" style={sz.per}>
+                      {isService ? '' : it.per}
+                    </td>
+                    <td className="c-amt" style={sz.amt}>
                       {editable ? (
                         <NumCell
                           value={amount}
@@ -209,7 +278,7 @@ export default function InvoiceDocument({
                           className="inv-in inv-in-r"
                         />
                       ) : (
-                        grouped(amount)
+                        amtStr
                       )}
                     </td>
                   </tr>
@@ -244,7 +313,7 @@ export default function InvoiceDocument({
                 <td className="c-qty" />
                 <td className="c-rate" />
                 <td className="c-per" />
-                <td className="c-amt">
+                <td className="c-amt" style={sz.amt}>
                   {editable ? (
                     <NumCell
                       value={calc.subTotal}
@@ -268,7 +337,7 @@ export default function InvoiceDocument({
                     <td className="c-qty" />
                     <td className="c-rate" />
                     <td className="c-per" />
-                    <td className="c-amt">{plain(calc.cgst)}</td>
+                    <td className="c-amt" style={sz.amt}>{plain(calc.cgst)}</td>
                   </tr>
                   <tr className="taxrow">
                     <td className="c-sl" />
@@ -277,7 +346,7 @@ export default function InvoiceDocument({
                     <td className="c-qty" />
                     <td className="c-rate" />
                     <td className="c-per" />
-                    <td className="c-amt">{plain(calc.sgst)}</td>
+                    <td className="c-amt" style={sz.amt}>{plain(calc.sgst)}</td>
                   </tr>
                 </>
               ) : (
@@ -288,7 +357,7 @@ export default function InvoiceDocument({
                   <td className="c-qty" />
                   <td className="c-rate" />
                   <td className="c-per" />
-                  <td className="c-amt">{plain(calc.igst)}</td>
+                  <td className="c-amt" style={sz.amt}>{plain(calc.igst)}</td>
                 </tr>
               )}
 
@@ -299,7 +368,7 @@ export default function InvoiceDocument({
                 <td className="c-qty" />
                 <td className="c-rate" />
                 <td className="c-per" />
-                <td className="c-amt">{plain(calc.roundOff)}</td>
+                <td className="c-amt" style={sz.amt}>{plain(calc.roundOff)}</td>
               </tr>
 
               <tr className="grand">
@@ -309,7 +378,7 @@ export default function InvoiceDocument({
                 <td className="c-qty" />
                 <td className="c-rate" />
                 <td className="c-per" />
-                <td className="c-amt">
+                <td className="c-amt" style={sz.amt}>
                   {editable ? (
                     <NumCell
                       value={calc.grandTotal}
@@ -383,20 +452,20 @@ export default function InvoiceDocument({
               <tr key={`${r.hsn}-${r.gstRate}`}>
                 <td />
                 <td className="h-hsn">{r.hsn}</td>
-                <td className="h-tv">{plain(r.taxable)}</td>
+                <td className="h-tv" style={sz.taxable}>{plain(r.taxable)}</td>
                 {intra ? (
                   <>
                     <td className="h-rate">{r.gstRate / 2}%</td>
-                    <td className="h-amt">{plain(r.cgst)}</td>
+                    <td className="h-amt" style={sz.tax}>{plain(r.cgst)}</td>
                     <td className="h-rate">{r.gstRate / 2}%</td>
-                    <td className="h-amt">{plain(r.sgst)}</td>
+                    <td className="h-amt" style={sz.tax}>{plain(r.sgst)}</td>
                   </>
                 ) : (
                   <>
                     <td className="h-rate" colSpan={2}>
                       {r.gstRate}%
                     </td>
-                    <td className="h-amt" colSpan={2}>
+                    <td className="h-amt" colSpan={2} style={sz.tax}>
                       {plain(r.igst)}
                     </td>
                   </>
@@ -406,18 +475,18 @@ export default function InvoiceDocument({
             <tr className="hsn-total">
               <td />
               <td className="total-label">Total</td>
-              <td className="h-tv">{plain(calc.subTotal)}</td>
+              <td className="h-tv" style={sz.taxable}>{plain(calc.subTotal)}</td>
               {intra ? (
                 <>
                   <td className="h-rate" />
-                  <td className="h-amt">{plain(calc.cgst)}</td>
+                  <td className="h-amt" style={sz.tax}>{plain(calc.cgst)}</td>
                   <td className="h-rate" />
-                  <td className="h-amt">{plain(calc.sgst)}</td>
+                  <td className="h-amt" style={sz.tax}>{plain(calc.sgst)}</td>
                 </>
               ) : (
                 <>
                   <td className="h-rate" colSpan={2} />
-                  <td className="h-amt" colSpan={2}>
+                  <td className="h-amt" colSpan={2} style={sz.tax}>
                     {plain(calc.igst)}
                   </td>
                 </>

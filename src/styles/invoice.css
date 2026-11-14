@@ -178,7 +178,13 @@ table.items thead th {
   border-bottom: var(--bw) solid var(--line);
   font-weight: 700;
   text-align: center;
-  padding: 1.1mm 1.4mm;
+  /*
+    Narrower side padding than the body cells. These headings are the longest
+    strings their columns ever carry ("Quantity" in 9.43%, "HSN/SAC" in
+    10.05%), and the sample sets them almost edge to edge for the same reason.
+    At the body padding they sit on the rules.
+  */
+  padding: 1.1mm 0.6mm;
 }
 
 /* ---- the shared seven-column grid, measured off the printed sample ---- */
@@ -190,6 +196,8 @@ table.items thead th {
 .c-desc {
   width: 46.74%;
   text-align: left;
+  /* a part number with no spaces in it breaks rather than runs over */
+  overflow-wrap: anywhere;
 }
 .c-hsn {
   width: 10.05%;
@@ -404,9 +412,23 @@ table.hsn tr.hsn-total td {
 /* ---------------------------------------------------------------- print -- */
 
 @media print {
+  /*
+    Zero page margin, and the sheet draws its own instead (the padding on
+    .inv below).
+
+    That is not a style choice. A browser only prints its own header and
+    footer — the page title along the top, the site address and page number
+    along the bottom — when the page margin leaves room for them. Chrome on
+    the counter's phone had been stamping the Vercel address under every
+    bill. With no margin there is nowhere to put them, on desktop and on
+    Android alike, and nothing has to be unticked in the print dialog.
+
+    The 11/12mm we give back as padding keeps the ink inside the printable
+    area of any ordinary office printer.
+  */
   @page {
     size: A4 portrait;
-    margin: 11mm 12mm;
+    margin: 0;
   }
 
   html,
@@ -431,13 +453,21 @@ table.hsn tr.hsn-total td {
 
   .inv {
     width: 100%;
-    min-height: 0;
+    /*
+      Fill the sheet, whatever the sheet is. 100vh is the page box in print,
+      so this comes out at 297mm on A4 and 279mm on US Letter — which is what
+      a phone print dialog often defaults to. The old fixed 263mm box was
+      taller than Letter's printable height and spilled onto a second page.
+    */
+    min-height: 100vh;
+    padding: 11mm 12mm;
     box-shadow: none !important;
     page-break-after: avoid;
   }
 
   .inv-box {
-    min-height: 263mm;
+    min-height: 0;
+    flex: 1;
   }
 }
 

@@ -1,5 +1,14 @@
 const A4 = { w: 210, h: 297 } // mm
 
+/*
+  The same margins the print stylesheet uses, so a saved PDF and a sheet off
+  the printer are the same document. They used to differ: the PDF was laid out
+  on a 194mm sheet against print's 186mm, which stretched every column by
+  four percent and was enough to shift where the figures sat in them.
+*/
+const MARGIN = { x: 12, y: 11 }
+const SHEET = { w: A4.w - MARGIN.x * 2, h: A4.h - MARGIN.y * 2 }
+
 /** "Invoice-145-2026-2027-Primetec-Industries.pdf" */
 export const invoiceFileName = (invoiceNo: string, buyerName: string): string => {
   const clean = (s: string) =>
@@ -36,20 +45,13 @@ export const invoiceToPdfBlob = async (node: HTMLElement): Promise<Blob> => {
 
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
 
-  // The document is laid out at 194mm wide; centre it with the same 8mm margin
-  // the print stylesheet uses.
-  const marginX = 8
-  const width = A4.w - marginX * 2
-  const height = (canvas.height / canvas.width) * width
-  const marginY = Math.max(7, (A4.h - height) / 2)
-
   pdf.addImage(
     canvas.toDataURL('image/png', 1),
     'PNG',
-    marginX,
-    Math.min(marginY, 7),
-    width,
-    Math.min(height, A4.h - 14),
+    MARGIN.x,
+    MARGIN.y,
+    SHEET.w,
+    Math.min((canvas.height / canvas.width) * SHEET.w, SHEET.h),
     undefined,
     'FAST',
   )
@@ -72,7 +74,6 @@ export const invoicesToPdfBlob = async (
   ])
 
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
-  const marginX = 8
 
   for (let i = 0; i < nodes.length; i++) {
     const canvas = await html2canvas(nodes[i], {
@@ -82,15 +83,13 @@ export const invoicesToPdfBlob = async (
       logging: false,
     })
     if (i > 0) pdf.addPage()
-    const width = A4.w - marginX * 2
-    const height = (canvas.height / canvas.width) * width
     pdf.addImage(
       canvas.toDataURL('image/png', 1),
       'PNG',
-      marginX,
-      7,
-      width,
-      Math.min(height, A4.h - 14),
+      MARGIN.x,
+      MARGIN.y,
+      SHEET.w,
+      Math.min((canvas.height / canvas.width) * SHEET.w, SHEET.h),
       undefined,
       'FAST',
     )

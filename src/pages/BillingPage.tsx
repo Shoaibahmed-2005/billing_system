@@ -1131,7 +1131,12 @@ function PreviewOverlay({
       ) : null}
 
       {/* Plain copy of the bill, off-screen, rendered to PNG for the PDF so the
-          exported file never shows the bargaining underlines. */}
+          exported file never shows the bargaining underlines.
+
+          Exactly as wide as the bill itself. It used to be 194mm around a
+          186mm sheet, and html2canvas duly captured the 8mm of white on the
+          right as part of the picture — which is why a saved PDF sat a little
+          left of centre with its columns stretched. */}
       <div
         ref={pdfRef}
         aria-hidden
@@ -1139,7 +1144,7 @@ function PreviewOverlay({
           position: 'fixed',
           left: '-10000px',
           top: 0,
-          width: '194mm',
+          width: '186mm',
           background: '#fff',
           zIndex: -1,
         }}

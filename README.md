@@ -149,8 +149,16 @@ screen.
 ## Printing, PDF and WhatsApp
 
 **Save & Print** saves the bill and opens the browser print dialog. Set the printer to **A4,
-portrait**, margins **Default**, and leave headers and footers off. The bill occupies exactly one
-A4 sheet, and nothing but the bill is printed — the app's own screens are excluded.
+portrait** and press print; nothing in the dialog needs changing.
+
+Nothing but the bill reaches the paper. The app's own screens are excluded, and so is the
+browser's own furniture — the page title along the top, the site address and page number along
+the bottom, which Chrome on a phone had been stamping under every bill. The sheet asks for a page
+margin of zero and draws its own 11mm instead, which leaves the browser nowhere to put them.
+
+It fits one page whatever paper the printer is set to. A4 is what it asks for, but a phone print
+dialog often defaults to US Letter, which is 18mm shorter — the bill closes up to suit rather than
+running onto a second sheet.
 
 **Save PDF** writes a single-page A4 PDF of the bill, named like
 `Invoice-145-2026-2027-Primetec-Industries.pdf`.
@@ -259,6 +267,23 @@ Change them against a fresh measurement rather than by eye.
 
 The one structural thing worth knowing: the items table and the HSN summary share a single
 seven-column grid, which is what makes the two line up down the page.
+
+## Figures too wide for their column
+
+A bill past a lakh used to print its total across the column rule: "2,88,000.00" is simply wider
+than the Amount column at full size. Rather than widen the column — the widths are the sample's,
+and changing them would stop the bill matching — each column is measured against its longest
+figure before anything is drawn, and shrinks only as far as it has to.
+
+A column shrinks as a whole, never cell by cell, because a column with two or three type sizes
+running down it looks like a fault even when every figure is inside its rules. CGST and SGST are
+measured together for the same reason, so the same number is never printed twice at two sizes side
+by side.
+
+On an ordinary bill nothing moves. On the client's own ₹4.6 lakh invoice the Amount column comes
+down 5%, which is not visible unless you are looking for it. A ₹2.1 crore invoice brings it down a
+quarter, and still nothing touches a rule. The measuring is done on a canvas in the same font the
+sheet uses, so it holds on a phone too, where the font stack resolves to Roboto rather than Arial.
 
 ## Known limits
 
