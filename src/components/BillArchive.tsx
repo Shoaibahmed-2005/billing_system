@@ -265,8 +265,17 @@ function MonthPdf({
 
     const run = async () => {
       try {
-        // two frames: one for React to commit, one for layout to settle
-        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null))))
+        /*
+          Two frames: one for React to commit the off-screen copies, one for
+          layout to settle. With a timer alongside, because a browser stops
+          serving frames to a page that is not on screen — and a counter who
+          starts a month export and switches to WhatsApp while it runs would
+          otherwise come back to a button stuck on nought.
+        */
+        await Promise.race([
+          new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(null)))),
+          new Promise((r) => window.setTimeout(r, 250)),
+        ])
         if (cancelled) return
         const nodes = [...(holder.current?.querySelectorAll<HTMLElement>('[data-bill]') ?? [])]
         if (!nodes.length) throw new Error('nothing to export')

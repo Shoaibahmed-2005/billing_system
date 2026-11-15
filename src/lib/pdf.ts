@@ -1,13 +1,4 @@
-const A4 = { w: 210, h: 297 } // mm
-
-/*
-  The same margins the print stylesheet uses, so a saved PDF and a sheet off
-  the printer are the same document. They used to differ: the PDF was laid out
-  on a 194mm sheet against print's 186mm, which stretched every column by
-  four percent and was enough to shift where the figures sat in them.
-*/
-const MARGIN = { x: 12, y: 11 }
-const SHEET = { w: A4.w - MARGIN.x * 2, h: A4.h - MARGIN.y * 2 }
+import { billToPdfBlob, billsToPdfBlob } from './billPdf'
 
 /** "Invoice-145-2026-2027-Primetec-Industries.pdf" */
 export const invoiceFileName = (invoiceNo: string, buyerName: string): string => {
@@ -23,115 +14,28 @@ export const invoiceFileName = (invoiceNo: string, buyerName: string): string =>
 }
 
 /**
- * Rasterises the bill.
- *
- * html2canvas does not photograph the page; it clones the node into a frame
- * of its own and lays it out again there. Left to itself that frame inherits
- * the phone's viewport, and on Android the clone is then laid out under
- * different text-sizing rules from the original — which is how a bill that
- * looks right on the screen came out of WhatsApp with the figures sitting on
- * their rules. So the frame is told to be exactly the size of the bill, the
- * scroll offset is pinned, and the sheet's own stylesheet switches off text
- * boosting in both copies.
- */
-const rasterise = async (
-  html2canvas: typeof import('html2canvas')['default'],
-  node: HTMLElement,
-): Promise<HTMLCanvasElement> => {
-  // a webfont that has not landed yet would be measured at fallback widths
-  try {
-    await document.fonts?.ready
-  } catch {
-    /* not supported — carry on */
-  }
-
-  const width = Math.round(node.getBoundingClientRect().width)
-  const height = Math.round(node.getBoundingClientRect().height)
-
-  return html2canvas(node, {
-    scale: 2, // ~1400px across the bill — sharp enough for 8pt type, and quick
-    backgroundColor: '#ffffff',
-    useCORS: true,
-    logging: false,
-    width,
-    height,
-    windowWidth: width,
-    windowHeight: height,
-    scrollX: 0,
-    scrollY: 0,
-    x: 0,
-    y: 0,
-  })
-}
-
-/**
  * Renders the bill node to a single-page A4 PDF.
  *
  * The node handed in is the plain (non-editable) document kept off-screen, so
  * the PDF never picks up the input underlines from the bargaining view.
+ *
+ * The drawing itself is in billPdf.ts, which transcribes the layout the
+ * browser has already done rather than re-rendering the bill. That is the
+ * whole point: the previous version rasterised it with html2canvas, which
+ * lays the bill out a second time in a frame of its own, and on Android that
+ * second layout disagreed with the first — the bill looked right on the
+ * phone and reached the customer with its figures across the rules.
  */
-export const invoiceToPdfBlob = async (node: HTMLElement): Promise<Blob> => {
-  // Loaded on demand — together these are the heaviest thing in the app, and
-  // most sessions never ask for a PDF.
-  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-    import('html2canvas'),
-    import('jspdf'),
-  ])
-
-  const canvas = await rasterise(html2canvas, node)
-
-  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
-
-  pdf.addImage(
-    canvas.toDataURL('image/png', 1),
-    'PNG',
-    MARGIN.x,
-    MARGIN.y,
-    SHEET.w,
-    Math.min((canvas.height / canvas.width) * SHEET.w, SHEET.h),
-    undefined,
-    'FAST',
-  )
-
-  return pdf.output('blob')
-}
+export const invoiceToPdfBlob = (node: HTMLElement): Promise<Blob> => billToPdfBlob(node)
 
 /**
  * Several bills into one PDF, a page each — what they send the accountant at
- * the end of a month. `onProgress` drives the counter in the UI, since a full
- * month of bills takes a while to rasterise.
+ * the end of a month. `onProgress` drives the counter in the UI.
  */
-export const invoicesToPdfBlob = async (
+export const invoicesToPdfBlob = (
   nodes: HTMLElement[],
   onProgress?: (done: number, total: number) => void,
-): Promise<Blob> => {
-  const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-    import('html2canvas'),
-    import('jspdf'),
-  ])
-
-  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
-
-  for (let i = 0; i < nodes.length; i++) {
-    const canvas = await rasterise(html2canvas, nodes[i])
-    if (i > 0) pdf.addPage()
-    pdf.addImage(
-      canvas.toDataURL('image/png', 1),
-      'PNG',
-      MARGIN.x,
-      MARGIN.y,
-      SHEET.w,
-      Math.min((canvas.height / canvas.width) * SHEET.w, SHEET.h),
-      undefined,
-      'FAST',
-    )
-    onProgress?.(i + 1, nodes.length)
-    // let the progress counter paint between pages
-    await new Promise((r) => setTimeout(r, 0))
-  }
-
-  return pdf.output('blob')
-}
+): Promise<Blob> => billsToPdfBlob(nodes, onProgress)
 
 export const downloadBlob = (blob: Blob, fileName: string) => {
   const url = URL.createObjectURL(blob)

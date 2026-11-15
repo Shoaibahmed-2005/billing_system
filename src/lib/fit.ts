@@ -12,9 +12,10 @@
  * same font stack the sheet uses, which matters because the stack resolves to
  * Arial on Windows and Roboto on Android, and those have different widths.
  *
- * The result is a plain percentage font-size baked into the element, so it
- * survives everything the bill is put through — the screen preview at any
- * zoom, the print stylesheet, and the html2canvas capture behind Save PDF.
+ * The result is a plain font-size baked into the element, so it survives
+ * everything the bill is put through — the screen preview at any zoom, the
+ * print stylesheet, and the PDF, which is drawn from these same laid-out
+ * nodes.
  */
 
 /** The sheet, as the stylesheet lays it out. Keep in step with invoice.css. */
