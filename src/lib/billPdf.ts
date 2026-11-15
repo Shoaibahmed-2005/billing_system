@@ -62,23 +62,38 @@ const rgb = (color: string): [number, number, number] => {
  * The tables collapse their borders, so neighbouring cells each claim the
  * same rule and it gets drawn twice in the same place. That is harmless, and
  * far safer than trying to work out which side of a collapsed edge won.
+ *
+ * Where the ink sits depends on that collapse. A border on an ordinary
+ * element is painted INSIDE the box, so its middle is half a width in from
+ * the edge the rect reports. In a collapsed table the rule straddles the
+ * boundary between two cells, and the rect edge is already its middle. Half
+ * a hairline is a sixth of a millimetre, which sounds like nothing until an
+ * ordinary element's border and a table rule are meant to read as one line
+ * down the page — then it is a visible kink, which is exactly what the
+ * counter's customer saw beside the Quantity column.
  */
 const drawBorders = (c: Ctx, el: Element, cs: CSSStyleDeclaration) => {
   const r = el.getBoundingClientRect()
   if (r.width <= 0 || r.height <= 0) return
 
-  const sides = [
-    ['Top', r.left, r.top, r.right, r.top],
-    ['Right', r.right, r.top, r.right, r.bottom],
-    ['Bottom', r.left, r.bottom, r.right, r.bottom],
-    ['Left', r.left, r.top, r.left, r.bottom],
-  ] as const
+  const collapsed = cs.borderCollapse === 'collapse'
 
-  for (const [side, x1, y1, x2, y2] of sides) {
-    const w = parseFloat(cs.getPropertyValue(`border-${side.toLowerCase()}-width`))
-    const style = cs.getPropertyValue(`border-${side.toLowerCase()}-style`)
-    const color = cs.getPropertyValue(`border-${side.toLowerCase()}-color`)
+  for (const side of ['Top', 'Right', 'Bottom', 'Left'] as const) {
+    const key = side.toLowerCase()
+    const w = parseFloat(cs.getPropertyValue(`border-${key}-width`))
+    const style = cs.getPropertyValue(`border-${key}-style`)
+    const color = cs.getPropertyValue(`border-${key}-color`)
     if (!w || style === 'none' || style === 'hidden' || !visible(color)) continue
+
+    const d = collapsed ? 0 : w / 2
+    const [x1, y1, x2, y2] =
+      side === 'Top'
+        ? [r.left, r.top + d, r.right, r.top + d]
+        : side === 'Bottom'
+          ? [r.left, r.bottom - d, r.right, r.bottom - d]
+          : side === 'Left'
+            ? [r.left + d, r.top, r.left + d, r.bottom]
+            : [r.right - d, r.top, r.right - d, r.bottom]
 
     c.pdf.setDrawColor(...rgb(color))
     c.pdf.setLineWidth(Math.max(w * c.k, 0.09))

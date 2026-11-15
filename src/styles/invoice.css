@@ -20,6 +20,13 @@
 .inv {
   --line: #000;
   --bw: 0.8pt;
+  /*
+    Half a rule. A border on an ordinary element is painted inside its box,
+    while a collapsed table rule straddles the boundary between two cells —
+    so to put the two on one line the plain element has to reach half a rule
+    past the column edge. See .inv-head-left.
+  */
+  --hbw: 0.4pt;
 
   width: 186mm;
   min-height: 275mm;
@@ -70,15 +77,30 @@
   align-items: stretch;
 }
 
+/*
+  The two rules in this header are not header rules. They are the Description
+  and Quantity column rules of the items table, carried up the page — on the
+  bill the shop has always used, each runs unbroken from the top of the box to
+  the bottom. They have to be struck off the same grid as the table or they
+  come out as a kink where the header meets the headings, which is what the
+  client's customer spotted beside Quantity.
+
+  Description ends at 5.8% + 46.74% = 52.54% of the box, so that is where this
+  rule belongs, plus half a rule because this border is painted inside the box
+  and the table's is centred on the boundary. The right-hand half takes
+  whatever is left, so the two still add up to the full width.
+*/
 .inv-head-left {
-  width: 52.5%;
+  width: calc(52.54% + var(--hbw));
+  flex: none;
   border-right: var(--bw) solid var(--line);
   display: flex;
   flex-direction: column;
 }
 
 .inv-head-right {
-  width: 47.5%;
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
@@ -126,15 +148,21 @@
   min-height: 10.5mm;
 }
 
+/*
+  And this one is the Quantity column rule, which ends at
+  5.8 + 46.74 + 10.05 + 9.43 = 72.02% of the box. Measured against the
+  right-hand half rather than the whole, that lands at 41.111% — check it by
+  measuring, not by eye, if any column width here ever moves.
+*/
 .meta-cell.split-left {
-  width: 41.6%;
+  width: 41.111%;
   flex: none;
   border-right: var(--bw) solid var(--line);
 }
 
 .meta-cell.split-right {
-  width: 58.4%;
-  flex: none;
+  flex: 1;
+  min-width: 0;
   text-align: center;
 }
 

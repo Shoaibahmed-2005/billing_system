@@ -277,7 +277,16 @@ scanned out of that image and the type sizes derived from the measured width of 
 Change them against a fresh measurement rather than by eye.
 
 The one structural thing worth knowing: the items table and the HSN summary share a single
-seven-column grid, which is what makes the two line up down the page.
+seven-column grid, which is what makes the two line up down the page. The header block above
+them is struck off that same grid — the rule beside `Despatch Through` is the Description column
+rule and the one beside `Terms of Delivery` is the Quantity column rule, each carried up the
+page so that it reads as one unbroken line, the way it does on the bill the shop has always
+used. Move a column width and those two have to move with it; check it by measuring.
+
+There is a half-hairline catch in that. The tables collapse their borders, so a table rule is
+centred on the boundary between two cells, while a border on an ordinary `div` is painted
+inside its own box. For the two to read as one line the `div` has to reach half a rule
+further, which is what the `--hbw` variable in the stylesheet is for.
 
 ## Knowing what you just tapped
 
