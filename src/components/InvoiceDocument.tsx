@@ -419,13 +419,14 @@ export default function InvoiceDocument({
                 <br />
                 Value
               </th>
+              {/* the client asked for the short names, not Tally's wording */}
               {intra ? (
                 <>
-                  <th colSpan={2}>Central Tax</th>
-                  <th colSpan={2}>State Tax</th>
+                  <th colSpan={2}>CGST</th>
+                  <th colSpan={2}>SGST</th>
                 </>
               ) : (
-                <th colSpan={4}>Integrated Tax</th>
+                <th colSpan={4}>IGST</th>
               )}
             </tr>
             <tr>

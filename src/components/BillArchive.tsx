@@ -16,6 +16,12 @@ import { Button, Card, Empty, Input } from './ui'
  *
  * Within a month bills run first-of-the-month first — the order they were
  * written — not newest first.
+ *
+ * Years and months are laid out on a fixed grid, every cell the same size,
+ * and every month of the year is shown whether or not anything was billed in
+ * it. Sizing each box to its own text made April and October different
+ * widths, and dropping the quiet months made each year a different shape —
+ * both of which make it slower to find the month you are after.
  */
 
 /** Months in financial-year order: April through March. */
@@ -64,10 +70,16 @@ export default function BillArchive({
     [dated, year],
   )
 
+  /*
+    All twelve, always, whether or not anything was billed in them. A quiet
+    month is itself worth seeing — the gap in the row is the information —
+    and a grid that changes shape from year to year is hard to read at a
+    glance when you are looking for the same month each time.
+  */
   const months = useMemo(() => {
     const counts = new Map<number, number>()
     for (const { d } of inYear) counts.set(d.getMonth(), (counts.get(d.getMonth()) ?? 0) + 1)
-    return FY_MONTH_ORDER.filter((m) => counts.has(m)).map((m) => ({ m, n: counts.get(m)! }))
+    return FY_MONTH_ORDER.map((m) => ({ m, n: counts.get(m) ?? 0 }))
   }, [inYear])
 
   const inMonth = useMemo(
@@ -149,15 +161,15 @@ export default function BillArchive({
             <h2 className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.09em] text-muted">
               By year
             </h2>
-            <div className="flex flex-wrap gap-2.5">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
               {years.map(([fy, n]) => (
                 <button
                   key={fy}
                   onClick={() => setYear(fy)}
-                  className="group rounded-xl2 border border-line bg-card px-5 py-3 text-left transition-all duration-200
+                  className="group h-full rounded-xl2 border border-line bg-card px-4 py-3 text-left transition-all duration-200
                     hover:-translate-y-0.5 hover:border-copper hover:shadow-[0_14px_28px_-18px_rgba(180,113,58,0.9)]"
                 >
-                  <span className="block font-display text-[17px] font-semibold leading-tight text-ink">
+                  <span className="block truncate font-display text-[17px] font-semibold leading-tight text-ink">
                     {fy}
                   </span>
                   <span className="block text-[11.5px] text-muted">
@@ -182,15 +194,21 @@ export default function BillArchive({
       ) : year === null ? (
         children
       ) : month === null ? (
-        <div className="flex flex-wrap gap-2.5">
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
           {months.map(({ m, n }) => (
             <button
               key={m}
               onClick={() => setMonth(m)}
-              className="group rounded-xl2 border border-line bg-card px-5 py-3.5 text-left transition-all duration-200
-                hover:-translate-y-0.5 hover:border-copper hover:shadow-[0_14px_28px_-18px_rgba(180,113,58,0.9)]"
+              className={`group h-full rounded-xl2 border px-4 py-3.5 text-left transition-all duration-200
+                hover:-translate-y-0.5 hover:border-copper hover:shadow-[0_14px_28px_-18px_rgba(180,113,58,0.9)] ${
+                  n === 0 ? 'border-line/60 bg-bone/40' : 'border-line bg-card'
+                }`}
             >
-              <span className="block font-display text-[16px] font-semibold leading-tight text-ink">
+              <span
+                className={`block truncate font-display text-[16px] font-semibold leading-tight ${
+                  n === 0 ? 'text-muted' : 'text-ink'
+                }`}
+              >
                 {monthName(m)}
               </span>
               <span className="block text-[11.5px] text-muted">
@@ -201,10 +219,19 @@ export default function BillArchive({
         </div>
       ) : (
         <>
-          {allowMonthPdf ? (
+          {allowMonthPdf && inMonth.length > 0 ? (
             <MonthPdf bills={inMonth} seller={seller} label={`${monthName(month)}-${year}`} />
           ) : null}
-          <div className="stagger space-y-3">{inMonth.map(renderRow)}</div>
+          {inMonth.length === 0 ? (
+            <Card>
+              <Empty
+                title={`Nothing billed in ${monthName(month)} ${year}`}
+                note="The month is listed all the same, so a year reads the same way every time."
+              />
+            </Card>
+          ) : (
+            <div className="stagger space-y-3">{inMonth.map(renderRow)}</div>
+          )}
         </>
       )}
     </>

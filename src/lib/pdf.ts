@@ -23,6 +23,48 @@ export const invoiceFileName = (invoiceNo: string, buyerName: string): string =>
 }
 
 /**
+ * Rasterises the bill.
+ *
+ * html2canvas does not photograph the page; it clones the node into a frame
+ * of its own and lays it out again there. Left to itself that frame inherits
+ * the phone's viewport, and on Android the clone is then laid out under
+ * different text-sizing rules from the original — which is how a bill that
+ * looks right on the screen came out of WhatsApp with the figures sitting on
+ * their rules. So the frame is told to be exactly the size of the bill, the
+ * scroll offset is pinned, and the sheet's own stylesheet switches off text
+ * boosting in both copies.
+ */
+const rasterise = async (
+  html2canvas: typeof import('html2canvas')['default'],
+  node: HTMLElement,
+): Promise<HTMLCanvasElement> => {
+  // a webfont that has not landed yet would be measured at fallback widths
+  try {
+    await document.fonts?.ready
+  } catch {
+    /* not supported — carry on */
+  }
+
+  const width = Math.round(node.getBoundingClientRect().width)
+  const height = Math.round(node.getBoundingClientRect().height)
+
+  return html2canvas(node, {
+    scale: 2, // ~1400px across the bill — sharp enough for 8pt type, and quick
+    backgroundColor: '#ffffff',
+    useCORS: true,
+    logging: false,
+    width,
+    height,
+    windowWidth: width,
+    windowHeight: height,
+    scrollX: 0,
+    scrollY: 0,
+    x: 0,
+    y: 0,
+  })
+}
+
+/**
  * Renders the bill node to a single-page A4 PDF.
  *
  * The node handed in is the plain (non-editable) document kept off-screen, so
@@ -36,12 +78,7 @@ export const invoiceToPdfBlob = async (node: HTMLElement): Promise<Blob> => {
     import('jspdf'),
   ])
 
-  const canvas = await html2canvas(node, {
-    scale: 2, // ~1470px across the bill — sharp enough for 8pt text, and quick
-    backgroundColor: '#ffffff',
-    useCORS: true,
-    logging: false,
-  })
+  const canvas = await rasterise(html2canvas, node)
 
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
 
@@ -76,12 +113,7 @@ export const invoicesToPdfBlob = async (
   const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
 
   for (let i = 0; i < nodes.length; i++) {
-    const canvas = await html2canvas(nodes[i], {
-      scale: 2,
-      backgroundColor: '#ffffff',
-      useCORS: true,
-      logging: false,
-    })
+    const canvas = await rasterise(html2canvas, nodes[i])
     if (i > 0) pdf.addPage()
     pdf.addImage(
       canvas.toDataURL('image/png', 1),

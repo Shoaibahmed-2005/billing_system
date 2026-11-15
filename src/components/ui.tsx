@@ -33,7 +33,8 @@ export function Button({
   return (
     <button
       {...rest}
-      className={`inline-flex items-center justify-center gap-2 rounded-full font-semibold tracking-tight
+      className={`inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full
+        font-semibold tracking-tight
         transition-all duration-200 ease-out active:scale-[0.97]
         disabled:opacity-40 disabled:pointer-events-none
         ${sizes[size]} ${variants[variant]} ${className}`}

@@ -83,6 +83,10 @@ so far this financial year, as `7/2026-2027` — and the field shows which bill 
 so a wrong suggestion is obvious before it is saved. Reusing a number that is already on another
 bill is flagged.
 
+The summary's columns are headed **CGST / SGST**, or **IGST** on an inter-state bill, rather
+than Tally's "Central Tax" and "State Tax" — the client reads the short names faster. The Rate
+column is centred.
+
 **GST is separated per HSN/SAC.** Every product carries its own HSN code and GST rate. Lines
 sharing an HSN are summed into one row of the tax summary — all the motors under 8501 give one
 figure, all the bolts under 7318 another, exactly as the printed bill does.
@@ -127,6 +131,11 @@ The front page shows the year buttons, then the most recent 15 bills. Open a yea
 months, April through March; open a month and you get its bills in the order they were written —
 **first of the month first**, not newest first.
 
+Every month of the year is listed whether or not anything was billed in it, and every box is the
+same size. A quiet month showing "0 bills" is itself worth seeing, and a grid that keeps its shape
+from year to year is quicker to read when you are looking for the same month each time. Both
+screens get this from one component, so they cannot drift apart.
+
 The search box follows you down: on the front page it searches every bill, inside a year only that
 year, inside a month only that month.
 
@@ -158,7 +167,9 @@ margin of zero and draws its own 11mm instead, which leaves the browser nowhere 
 
 It fits one page whatever paper the printer is set to. A4 is what it asks for, but a phone print
 dialog often defaults to US Letter, which is 18mm shorter — the bill closes up to suit rather than
-running onto a second sheet.
+running onto a second sheet. The sheet is sized to the page rather than to a fixed height, keeps
+4mm of slack for printers that scale to their own printable area, and clips rather than
+paginates, so a stray pixel can never become a second page.
 
 **Save PDF** writes a single-page A4 PDF of the bill, named like
 `Invoice-145-2026-2027-Primetec-Industries.pdf`.
@@ -267,6 +278,17 @@ Change them against a fresh measurement rather than by eye.
 
 The one structural thing worth knowing: the items table and the HSN summary share a single
 seven-column grid, which is what makes the two line up down the page.
+
+## Knowing what you just tapped
+
+A product card shows **Added 1**, **Added 2** and so on once it is on the bill, the card itself
+picks up a tint, and a note slides up at the foot of the screen naming what went on. On a phone
+the bill lines sit far below the catalogue, so without this the only way to tell a tap had landed
+was to scroll down — and the same part went on twice.
+
+The count is read off the bill's own lines, so it is right wherever the bill came from: a new
+bill, one opened for editing, or one opened with **Use again**, which starts with its parts
+already counted.
 
 ## Figures too wide for their column
 

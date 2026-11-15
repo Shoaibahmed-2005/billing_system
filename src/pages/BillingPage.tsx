@@ -93,6 +93,14 @@ export default function BillingPage({
   const [addProduct, setAddProduct] = useState(false)
   const [showSignature, setShowSignature] = useState(draft?.showSignature ?? true)
   const [flash, setFlash] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null)
+  /*
+    What the counter just tapped. On a phone the bill lines are far below the
+    catalogue, so tapping a product gave no sign that anything had happened
+    and the same part went on twice. This drives both the running count on
+    the card and the note at the foot of the screen.
+  */
+  const [justAdded, setJustAdded] = useState<{ name: string; n: number } | null>(null)
+  const addedTimer = useRef<number | undefined>(undefined)
 
   const buyer = useMemo(
     () => companies.find((c) => c.id === buyerId) ?? draft?.buyer ?? null,
@@ -138,15 +146,35 @@ export default function BillingPage({
   }
 
   const addItem = (p: Product) => {
+    const existing = items.find((i) => i.productId === p.id && i.kind === 'goods')
     setItems((list) => {
-      const existing = list.find((i) => i.productId === p.id && i.kind === 'goods')
-      if (existing) {
-        return list.map((i) => (i.lineId === existing.lineId ? { ...i, qty: i.qty + 1 } : i))
+      const match = list.find((i) => i.productId === p.id && i.kind === 'goods')
+      if (match) {
+        return list.map((i) => (i.lineId === match.lineId ? { ...i, qty: i.qty + 1 } : i))
       }
       return [...list, toItem(p)]
     })
     setFlash(null)
+
+    const n = existing ? existing.qty + 1 : onBill.get(p.id) ? (onBill.get(p.id) ?? 0) + 1 : 1
+    setJustAdded({ name: p.name, n })
+    window.clearTimeout(addedTimer.current)
+    addedTimer.current = window.setTimeout(() => setJustAdded(null), 2400)
   }
+
+  /*
+    How many of each catalogue product are on the bill. Goods count by
+    quantity, since tapping the same part twice bumps one line; a service is
+    a line of its own each time.
+  */
+  const onBill = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const i of items) {
+      if (!i.productId) continue
+      m.set(i.productId, (m.get(i.productId) ?? 0) + (i.kind === 'goods' ? i.qty : 1))
+    }
+    return m
+  }, [items])
 
   const say = (tone: 'ok' | 'bad', text: string) => {
     setFlash({ tone, text })
@@ -427,21 +455,35 @@ export default function BillingPage({
             />
             <div className="scroll-thin max-h-[52vh] overflow-y-auto p-3 sm:max-h-[290px] sm:p-4">
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                {filtered.map((p) => (
+                {filtered.map((p) => {
+                  const added = onBill.get(p.id) ?? 0
+                  return (
                   <button
                     key={p.id}
                     onClick={() => addItem(p)}
-                    className="group rounded-xl2 border border-line bg-card px-3.5 py-3 text-left
+                    className={`group rounded-xl2 border px-3.5 py-3 text-left
                       transition-all duration-200 ease-out
                       hover:-translate-y-0.5 hover:scale-[1.025] hover:border-copper
-                      hover:shadow-[0_14px_28px_-18px_rgba(180,113,58,0.9)] active:scale-[0.99]"
+                      hover:shadow-[0_14px_28px_-18px_rgba(180,113,58,0.9)] active:scale-[0.99] ${
+                        added > 0 ? 'border-copper/70 bg-copper/[0.06]' : 'border-line bg-card'
+                      }`}
                   >
                     <div className="flex items-start justify-between gap-2">
                       <span className="line-clamp-2 text-[13px] font-bold leading-snug text-ink">
                         {p.name}
                       </span>
-                      <span className="shrink-0 rounded-full bg-bone-2 px-2 py-0.5 font-mono text-[10.5px] text-ink-2">
-                        {p.hsn}
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {added > 0 ? (
+                          <span
+                            key={added}
+                            className="anim-pop rounded-full bg-copper px-2 py-0.5 text-[10.5px] font-bold text-bone"
+                          >
+                            Added {added}
+                          </span>
+                        ) : null}
+                        <span className="rounded-full bg-bone-2 px-2 py-0.5 font-mono text-[10.5px] text-ink-2">
+                          {p.hsn}
+                        </span>
                       </span>
                     </div>
                     <div className="mt-2 flex items-center justify-between">
@@ -451,7 +493,8 @@ export default function BillingPage({
                       </span>
                     </div>
                   </button>
-                ))}
+                  )
+                })}
                 {filtered.length === 0 ? (
                   <p className="col-span-full py-8 text-center text-[13px] text-muted">
                     Nothing matches “{search}”.
@@ -827,6 +870,31 @@ export default function BillingPage({
           />
         ) : null}
       </Modal>
+
+      {/*
+        Confirmation of the last tap, pinned to the foot of the screen where
+        a thumb is already looking. Above the mobile total bar, and out of
+        the way of pointer events.
+      */}
+      {justAdded ? (
+        <div className="anim-rise pointer-events-none fixed inset-x-0 bottom-24 z-30 flex justify-center px-4 lg:bottom-8">
+          <div className="flex max-w-full items-center gap-2 rounded-full bg-espresso px-4 py-2.5 text-[13px] font-semibold text-bone shadow-[0_18px_40px_-14px_rgba(30,21,16,0.7)]">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" className="shrink-0">
+              <path
+                d="M5 12.5l4.5 4.5L19 7.5"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="truncate">
+              Added {justAdded.name}
+              {justAdded.n > 1 ? ` — now ${justAdded.n} on the bill` : null}
+            </span>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -966,7 +1034,9 @@ function PreviewOverlay({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* wraps onto its own line on a phone rather than squeezing the
+            labels out of their buttons */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={savePdf} disabled={busy !== null}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
               <path

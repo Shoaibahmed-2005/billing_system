@@ -31,6 +31,17 @@
   font-size: 10.4pt;
   line-height: 1.15;
   -webkit-font-smoothing: antialiased;
+
+  /*
+    Android inflates text it decides is body copy ("font boosting"), and it
+    makes that decision per block against the viewport width. On a phone that
+    silently resized parts of the bill — on screen it is absorbed, but the
+    PDF is rasterised through a clone laid out at a different width, where
+    the boosting lands differently and figures end up sitting on their rules.
+    Neither copy may be boosted.
+  */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 .inv-title {
@@ -315,7 +326,8 @@ table.hsn thead tr:first-child > * {
   text-align: right;
 }
 .h-rate {
-  text-align: left;
+  /* centred on the client's instruction; the sample sets it left */
+  text-align: center;
 }
 .h-amt {
   text-align: right;
@@ -447,22 +459,42 @@ table.hsn tr.hsn-total td {
     display: none !important;
   }
 
+  /* the sheet sizes itself against the page, so the chain down to it from
+     html must be full height the whole way — a wrapper of automatic height
+     anywhere in between and the percentage silently becomes "as tall as the
+     content", which leaves the bill floating above the foot of the paper */
   #print-root {
     display: block !important;
+    height: 100%;
+  }
+
+  html,
+  body {
+    height: 100%;
   }
 
   .inv {
-    width: 100%;
     /*
-      Fill the sheet, whatever the sheet is. 100vh is the page box in print,
-      so this comes out at 297mm on A4 and 279mm on US Letter — which is what
-      a phone print dialog often defaults to. The old fixed 263mm box was
-      taller than Letter's printable height and spilled onto a second page.
+      Fill the sheet, whatever the sheet is, and never exceed it.
+
+      height (not min-height) against a full-height html/body means the sheet
+      is exactly one page on A4, on US Letter — which is what a phone print
+      dialog often defaults to — and on anything else. The 10mm of vertical
+      padding rather than 12 leaves 4mm of slack, because a phone print
+      dialog scales to the printable area and a sheet sized to the very last
+      millimetre tips onto a second page when it does.
+
+      overflow: hidden is the backstop. Whatever happens, a bill cannot push
+      a few stray pixels onto a page of their own.
     */
-    min-height: 100vh;
-    padding: 11mm 12mm;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    padding: 10mm 12mm;
     box-shadow: none !important;
-    page-break-after: avoid;
+    break-after: avoid;
+    break-inside: avoid;
   }
 
   .inv-box {

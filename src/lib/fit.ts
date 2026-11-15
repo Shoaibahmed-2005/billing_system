@@ -120,9 +120,18 @@ export const columnScale = (
   weight: Weight = 400,
 ): number => texts.reduce((s, t) => Math.min(s, fitScale(t, widthPct, weight)), 1)
 
-/** A scale as a style, or nothing at all when the column fits as it is. */
+/**
+ * A scale as a style, or nothing at all when the column fits as it is.
+ *
+ * Written as an absolute size rather than a percentage on purpose. A
+ * percentage resolves against whatever the parent happens to be, and the PDF
+ * is rasterised from a clone of the sheet in a separate frame — if anything
+ * about the cascade differs there, a percentage resolves to a different size
+ * than the one the cell was laid out for, and the figure lands on its rule.
+ * An absolute size cannot drift.
+ */
 export const scaleStyle = (scale: number): { fontSize: string } | undefined =>
-  scale < 1 ? { fontSize: `${(scale * 100).toFixed(2)}%` } : undefined
+  scale < 1 ? { fontSize: `${(scale * BODY_PT).toFixed(2)}pt` } : undefined
 
 /** One cell, measured and sized on its own. */
 export const fitStyle = (
