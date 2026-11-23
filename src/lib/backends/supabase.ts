@@ -103,10 +103,23 @@ const fromCompany = (c: Company): CompanyRow => ({
   active: c.active,
 })
 
+/*
+  showSignature rides inside meta rather than in a column of its own.
+
+  There is no column for it, and the table is already live with the client's
+  bills in it — adding one would mean an ALTER TABLE run by hand against
+  their database before the fix did anything, which is a poor way to ship a
+  two-line correction. meta is jsonb and already holds everything else typed
+  on the right of the bill, so it goes there and old rows, which have no such
+  key, read back as true: the signature prints, which is what they did
+  before.
+*/
+type StoredMeta = Invoice['meta'] & { showSignature?: boolean }
+
 type InvoiceRow = {
   id: string
   invoice_no: string
-  meta: Invoice['meta']
+  meta: StoredMeta
   buyer: Company
   items: Invoice['items']
   tax_mode: Invoice['taxMode']
@@ -115,21 +128,26 @@ type InvoiceRow = {
   created_at: string
 }
 
-const toInvoice = (r: InvoiceRow): Invoice => ({
-  id: r.id,
-  meta: r.meta,
-  buyer: r.buyer,
-  items: r.items,
-  taxMode: r.tax_mode,
-  taxModeAuto: r.tax_mode_auto,
-  grandTotal: Number(r.grand_total),
-  createdAt: r.created_at,
-})
+const toInvoice = (r: InvoiceRow): Invoice => {
+  const { showSignature, ...meta } = r.meta
+  return {
+    id: r.id,
+    meta,
+    buyer: r.buyer,
+    items: r.items,
+    taxMode: r.tax_mode,
+    taxModeAuto: r.tax_mode_auto,
+    // absent on every bill written before this, and those did print it
+    showSignature: showSignature !== false,
+    grandTotal: Number(r.grand_total),
+    createdAt: r.created_at,
+  }
+}
 
 const fromInvoice = (i: Invoice): InvoiceRow => ({
   id: i.id,
   invoice_no: i.meta.invoiceNo,
-  meta: i.meta,
+  meta: { ...i.meta, showSignature: i.showSignature !== false },
   buyer: i.buyer,
   items: i.items,
   tax_mode: i.taxMode,
