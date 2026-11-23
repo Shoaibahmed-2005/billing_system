@@ -9,6 +9,7 @@ import {
 } from '../lib/store'
 import { SELLER } from '../lib/seller'
 import { prepareSignature } from '../lib/signature'
+import BackupCard from '../components/BackupCard'
 import CompanyForm from '../components/CompanyForm'
 import { Button, Card, CardHead, Field, Input, Modal, Pill, TextArea } from '../components/ui'
 
@@ -115,6 +116,8 @@ export default function SettingsPage({
             </div>
           )}
         </Card>
+
+        <BackupCard onChanged={onChanged} />
 
         <Card>
           <CardHead title="Data" subtitle="Everything is stored on this machine for now." />

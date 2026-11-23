@@ -197,6 +197,56 @@ first open.
 
 To clear it: **Settings → Clear all seed data**. To put it back: **Restore demo catalogue**.
 
+### Backup, and putting it back
+
+Supabase charges for its own backups, so the firm keeps theirs as spreadsheets. **Settings →
+Backup** has three downloads — products, companies, bills — and one **Import a backup** button
+that reads any of them back in.
+
+Two rules make that safe to press:
+
+- **Everything carries its id.** Importing the same file twice changes nothing the second time,
+  and a product renamed since the backup still matches itself rather than arriving as a copy. A
+  row typed in by hand with no id is matched on its name instead.
+- **Nothing already here is ever touched.** Only rows that have gone missing are put back, so
+  loading last quarter's file by mistake cannot undo this quarter's prices. The report afterwards
+  says what happened: "Products: 3 put back, 54 already here."
+
+The cost of the second rule is that bulk-editing rates in Excel and loading them back does
+nothing at all. That is deliberate — ask the client before changing it.
+
+GSTINs, HSN codes and phone numbers are written as text cells. Left as numbers, Excel reformats
+them and the round trip quietly loses data.
+
+### The month's GST sheet
+
+In **Invoices**, open a year and a month and there is a button named for the month —
+**June'2026 GST**. It opens the month on screen first, as a table on a laptop and as a block per
+bill on a phone, with **Download Excel** in the same panel. Nothing downloads until that is
+pressed, and a web page cannot open Excel itself — the file saves to the device and is opened
+there.
+
+`src/lib/gstSheet.ts` reproduces the SALES tab of the workbook the firm already keeps, down to
+the headings: "Invo No", "Amont", and the two spaces in "Sl  No " and "SGST  %" are theirs, not
+typos. One row per line of a bill, the bill's own details only on its first row, then a row
+carrying just the invoice total. Red type, ruled cells, and the money columns written as
+formulas rather than answers, so the sheet still adds up after the accountant corrects a rate.
+
+The one deliberate difference from their file: it has a single IGST column holding the amount,
+with the rate nowhere. The client asked for the rate and amount side by side, as CGST and SGST
+already have, so the sheet runs to column P rather than O.
+
+### Reading and writing .xlsx
+
+`src/lib/xlsx.ts` does both, in about two hundred lines and with nothing installed. An .xlsx is
+a zip of XML parts; writing one means a zip writer with stored entries and a CRC, and reading
+one means the same in reverse with `DecompressionStream` for the deflated parts. A spreadsheet
+library would have been a few hundred kilobytes downloaded onto a phone on mobile data for a
+button used once a month.
+
+It is tested against their own June'2026 workbook, which Excel wrote: three tabs, shared
+strings, deflate, 151 rows read back character for character.
+
 ## The database
 
 Supabase project `ablhveylchqtnkuynkjz`, with four tables created by `supabase/schema.sql`:

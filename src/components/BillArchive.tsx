@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Invoice, Seller } from '../lib/types'
 import { calcInvoice } from '../lib/gst'
 import { billDate, byBillOrder, financialYear, monthName } from '../lib/invoiceNo'
+import { gstSheetTitle } from '../lib/gstSheet'
 import { downloadBlob, invoicesToPdfBlob } from '../lib/pdf'
+import GstSheetModal from './GstSheetModal'
 import InvoiceDocument from './InvoiceDocument'
 import { Button, Card, Empty, Input } from './ui'
 
@@ -26,6 +28,17 @@ import { Button, Card, Empty, Input } from './ui'
 
 /** Months in financial-year order: April through March. */
 const FY_MONTH_ORDER = [3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 1, 2]
+
+/**
+ * The calendar year a month of a financial year falls in: April to December
+ * are the first half of "2026-2027", January to March the second. The GST
+ * sheet is named for that year, not for the financial one.
+ */
+const calendarYearOf = (fy: string | null, month: number): number => {
+  const first = Number((fy ?? '').slice(0, 4))
+  if (!Number.isFinite(first) || !first) return new Date().getFullYear()
+  return month >= 3 ? first : first + 1
+}
 
 export interface ArchiveProps {
   invoices: Invoice[]
@@ -220,7 +233,13 @@ export default function BillArchive({
       ) : (
         <>
           {allowMonthPdf && inMonth.length > 0 ? (
-            <MonthPdf bills={inMonth} seller={seller} label={`${monthName(month)}-${year}`} />
+            <MonthExport
+              bills={inMonth}
+              seller={seller}
+              label={`${monthName(month)}-${year}`}
+              month={month}
+              calendarYear={calendarYearOf(year, month)}
+            />
           ) : null}
           {inMonth.length === 0 ? (
             <Card>
@@ -240,19 +259,24 @@ export default function BillArchive({
 
 /* ----------------------------------------------------------- month export */
 
-function MonthPdf({
+function MonthExport({
   bills,
   seller,
   label,
+  month,
+  calendarYear,
 }: {
   bills: Invoice[]
   seller: Seller
   label: string
+  month: number
+  calendarYear: number
 }) {
   const holder = useRef<HTMLDivElement>(null)
   const [busy, setBusy] = useState(false)
   const [done, setDone] = useState(0)
   const [note, setNote] = useState('')
+  const [sheet, setSheet] = useState(false)
 
   /*
     The off-screen copies are only mounted while an export is running. Keeping
@@ -316,12 +340,33 @@ function MonthPdf({
         <div className="text-[12px] text-muted">
           {busy
             ? `Building page ${done} of ${bills.length}…`
-            : note || 'Download the whole month as one PDF to send for GST review.'}
+            : note || 'The whole month as one PDF, or as the GST sheet for the accountant.'}
         </div>
       </div>
-      <Button size="sm" onClick={build} disabled={busy}>
-        {busy ? `${done}/${bills.length}` : 'Download month PDF'}
-      </Button>
+      {/* side by side on a laptop; on a phone the pair fills the row under
+          the note, rather than squeezing against wrapped text */}
+      <div className="flex w-full gap-2 sm:w-auto">
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1 sm:flex-none"
+          onClick={() => setSheet(true)}
+          disabled={busy}
+        >
+          {gstSheetTitle(month, calendarYear)}
+        </Button>
+        <Button size="sm" className="flex-1 sm:flex-none" onClick={build} disabled={busy}>
+          {busy ? `${done}/${bills.length}` : 'Download month PDF'}
+        </Button>
+      </div>
+
+      <GstSheetModal
+        open={sheet}
+        onClose={() => setSheet(false)}
+        bills={bills}
+        month={month}
+        calendarYear={calendarYear}
+      />
 
       {/* off-screen copies, rendered plain, captured page by page */}
       <div
