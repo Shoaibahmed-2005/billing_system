@@ -37,3 +37,6 @@ export const resetSeller = () => backend.resetSeller()
 
 export const clearAllData = () => backend.clearAllData()
 export const reloadSeedData = () => backend.reloadSeedData()
+
+export const countDemoRows = () => backend.countDemoRows()
+export const clearForHandover = () => backend.clearForHandover()

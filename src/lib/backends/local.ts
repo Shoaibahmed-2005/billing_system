@@ -1,6 +1,6 @@
 import type { Company, Invoice, Product, Seller } from '../types'
 import { SELLER as DEFAULT_SELLER } from '../seller'
-import { SEED_COMPANIES, SEED_PRODUCTS } from '../seed'
+import { SEED_COMPANIES, SEED_PRODUCTS, seedIds } from '../seed'
 import type { Backend } from './types'
 
 /** Browser storage on this machine — the default until Supabase is configured. */
@@ -34,6 +34,23 @@ export const localBackend: Backend = {
     write(KEY.products, SEED_PRODUCTS)
     write(KEY.companies, SEED_COMPANIES)
     write(KEY.invoices, [])
+    localStorage.setItem(KEY.seeded, '1')
+  },
+
+  async countDemoRows() {
+    const ids = seedIds()
+    return (
+      read<Product[]>(KEY.products, []).filter((p) => ids.has(p.id)).length +
+      read<Company[]>(KEY.companies, []).filter((c) => ids.has(c.id)).length
+    )
+  },
+
+  async clearForHandover() {
+    const ids = seedIds()
+    write(KEY.products, read<Product[]>(KEY.products, []).filter((p) => !ids.has(p.id)))
+    write(KEY.companies, read<Company[]>(KEY.companies, []).filter((c) => !ids.has(c.id)))
+    write(KEY.invoices, [])
+    // already set, but a cleared browser must not re-seed either
     localStorage.setItem(KEY.seeded, '1')
   },
 

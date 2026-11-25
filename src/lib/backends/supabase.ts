@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Company, Invoice, Product, Seller } from '../types'
 import { SELLER as DEFAULT_SELLER } from '../seller'
-import { SEED_COMPANIES, SEED_PRODUCTS } from '../seed'
+import { SEED_COMPANIES, SEED_PRODUCTS, seedIds } from '../seed'
 import type { Backend } from './types'
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
@@ -156,25 +156,56 @@ const fromInvoice = (i: Invoice): InvoiceRow => ({
   created_at: i.createdAt,
 })
 
+/**
+ * Records that this database has had its demo data already, so that an empty
+ * catalogue is never mistaken for a fresh install.
+ */
+const markSeeded = (db: SupabaseClient) =>
+  db.from('settings').upsert({ key: 'seeded', value: { at: new Date().toISOString() } })
+
 /* ----------------------------------------------------------------- backend */
 
 export const supabaseBackend: Backend = {
   name: 'supabase',
 
   /** Fills an empty database with the demo catalogue on first run. */
+  /*
+    Seeds at most once in the life of a database, recorded by a row in
+    settings.
+
+    It used to seed whenever the products table was empty, which is a trap
+    with the demo data gone: the shop clears it for handover, the next page
+    load finds nothing and puts all fifty-seven fake parts back. The same
+    would happen to a real catalogue if its last product were ever removed.
+  */
   async ensureSeeded() {
     const db = supabase()
+
+    const { data: mark, error: markError } = await db
+      .from('settings')
+      .select('key')
+      .eq('key', 'seeded')
+      .maybeSingle()
+    fail('checking the demo data', markError)
+    if (mark) return
+
     const { count, error } = await db
       .from('products')
       .select('id', { count: 'exact', head: true })
     fail('checking products', error)
-    if ((count ?? 0) > 0) return
 
-    fail('seeding products', (await db.from('products').insert(SEED_PRODUCTS.map(fromProduct))).error)
-    fail(
-      'seeding companies',
-      (await db.from('companies').insert(SEED_COMPANIES.map(fromCompany))).error,
-    )
+    if ((count ?? 0) === 0) {
+      fail(
+        'seeding products',
+        (await db.from('products').insert(SEED_PRODUCTS.map(fromProduct))).error,
+      )
+      fail(
+        'seeding companies',
+        (await db.from('companies').insert(SEED_COMPANIES.map(fromCompany))).error,
+      )
+    }
+
+    fail('marking the demo data', (await markSeeded(db)).error)
   },
 
   async listProducts() {
@@ -255,6 +286,31 @@ export const supabaseBackend: Backend = {
       (await supabase().from('settings').delete().eq('key', 'seller')).error,
     )
     return DEFAULT_SELLER
+  },
+
+  async countDemoRows() {
+    const db = supabase()
+    const ids = [...seedIds()]
+    const { count: p, error: pe } = await db
+      .from('products')
+      .select('id', { count: 'exact', head: true })
+      .in('id', ids)
+    fail('counting the demo products', pe)
+    const { count: c, error: ce } = await db
+      .from('companies')
+      .select('id', { count: 'exact', head: true })
+      .in('id', ids)
+    fail('counting the demo companies', ce)
+    return (p ?? 0) + (c ?? 0)
+  },
+
+  async clearForHandover() {
+    const db = supabase()
+    const ids = [...seedIds()]
+    fail('clearing the test bills', (await db.from('invoices').delete().neq('id', '')).error)
+    fail('removing the demo products', (await db.from('products').delete().in('id', ids)).error)
+    fail('removing the demo companies', (await db.from('companies').delete().in('id', ids)).error)
+    fail('marking the demo data', (await markSeeded(db)).error)
   },
 
   async clearAllData() {

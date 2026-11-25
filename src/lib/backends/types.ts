@@ -28,4 +28,14 @@ export interface Backend {
 
   clearAllData(): Promise<void>
   reloadSeedData(): Promise<void>
+
+  /** how many of the shipped demo products and companies are still there */
+  countDemoRows(): Promise<number>
+
+  /**
+   * Handover: deletes the demo products and companies by id, deletes the
+   * bills raised while testing, and makes sure the demo never comes back.
+   * Rows the client added are not touched.
+   */
+  clearForHandover(): Promise<void>
 }

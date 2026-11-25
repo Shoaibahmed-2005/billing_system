@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Company, Seller } from '../lib/types'
 import {
+  backendName,
   clearAllData,
+  clearForHandover,
+  countDemoRows,
   reloadSeedData,
   resetSeller,
   saveCompany,
@@ -119,14 +122,30 @@ export default function SettingsPage({
 
         <BackupCard onChanged={onChanged} />
 
+        <HandoverCard counts={counts} onChanged={onChanged} say={say} />
+
         <Card>
-          <CardHead title="Data" subtitle="Everything is stored on this machine for now." />
-          <div className="grid gap-4 px-6 py-5 sm:grid-cols-3">
+          <CardHead
+            title="Data"
+            subtitle={
+              backendName === 'supabase'
+                ? 'Kept in the shop database — the same bills on every device.'
+                : 'Kept in this browser on this machine.'
+            }
+          />
+          <div className="grid gap-4 px-4 py-5 sm:grid-cols-3 sm:px-6">
             <Stat label="Products" value={counts.products} />
             <Stat label="Companies" value={counts.companies} />
             <Stat label="Invoices" value={counts.invoices} />
           </div>
-          <div className="flex flex-wrap items-center gap-2.5 border-t border-line px-6 py-4">
+          {/*
+            The demo buttons are for developing against browser storage. On
+            the shop's own database there is no version of "restore the demo
+            catalogue" that is anything but a way to drop fifty-seven parts
+            nobody sells into a live price list.
+          */}
+          {backendName === 'local' ? (
+          <div className="flex flex-wrap items-center gap-2.5 border-t border-line px-4 py-4 sm:px-6">
             <Button
               variant="outline"
               size="sm"
@@ -162,9 +181,11 @@ export default function SettingsPage({
               </Button>
             )}
             <span className="text-[12px] text-muted">
-              Clearing removes the demo products, companies and saved bills.
+              Developer buttons, browser storage only. Clearing removes the demo products,
+              companies and saved bills.
             </span>
           </div>
+          ) : null}
         </Card>
       </div>
 
@@ -427,5 +448,124 @@ function SignatureBox({ seller, onSave }: { seller: Seller; onSave: (s: Seller) 
         </p>
       )}
     </div>
+  )
+}
+
+/**
+ * The one-time handover panel.
+ *
+ * The site ships with a demo catalogue so there is something to click while
+ * it is being built. Before the shop starts billing for real that has to go,
+ * and this is the button that does it: the fifty-seven demo parts and six
+ * demo companies deleted by their own ids, and the bills raised while
+ * testing deleted with them.
+ *
+ * Two things make it safe. It deletes rows by id from the shipped list, so
+ * anything the shop has entered cannot be caught by it whatever it is
+ * called. And once the demo rows are gone the panel is not rendered again —
+ * there is nothing left for it to do, so nobody at the counter can press it
+ * by accident a year from now with a real catalogue in place.
+ */
+function HandoverCard({
+  counts,
+  onChanged,
+  say,
+}: {
+  counts: { products: number; companies: number; invoices: number }
+  onChanged: () => void
+  say: (t: string) => void
+}) {
+  const [demo, setDemo] = useState<number | null>(null)
+  const [confirm, setConfirm] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let live = true
+    void countDemoRows()
+      .then((n) => live && setDemo(n))
+      .catch(() => live && setDemo(0))
+    return () => {
+      live = false
+    }
+  }, [counts.products, counts.companies])
+
+  if (demo === null || demo === 0) return null
+
+  return (
+    <Card className="border-copper/40">
+      <CardHead
+        title="Before the shop starts billing"
+        subtitle="Clear the demo catalogue and the bills raised while testing."
+      />
+      <div className="px-4 py-4 sm:px-6">
+        <p className="text-[13px] leading-relaxed text-ink-2">
+          {demo} demo row{demo === 1 ? '' : 's'} are still here, and{' '}
+          {counts.invoices === 0 ? 'no bills have been saved' : `${counts.invoices} saved bill${
+            counts.invoices === 1 ? '' : 's'
+          }`}
+          . Removing them leaves an empty catalogue to fill with your own parts and companies.
+          Your firm details and signature stay as they are.
+        </p>
+
+        {confirm ? (
+          <div className="mt-4 rounded-xl2 border border-clay/30 bg-clay/8 px-4 py-3.5">
+            <p className="text-[13px] font-semibold text-ink">
+              Delete the {demo} demo row{demo === 1 ? '' : 's'}
+              {counts.invoices === 0
+                ? ''
+                : counts.invoices === 1
+                  ? ' and the one saved bill'
+                  : ` and all ${counts.invoices} saved bills`}
+              ? This cannot be undone.
+            </p>
+            <p className="mt-1 text-[12px] text-muted">
+              Take a backup first if you want to keep a copy of the test bills.
+            </p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <Button
+                className="w-full sm:w-auto"
+                variant="danger"
+                size="sm"
+                disabled={busy}
+                onClick={async () => {
+                  setBusy(true)
+                  try {
+                    await clearForHandover()
+                    setConfirm(false)
+                    setDemo(0)
+                    onChanged()
+                    say('Demo data removed. The catalogue is yours to fill.')
+                  } catch {
+                    say('Could not remove the demo data. Try again.')
+                  } finally {
+                    setBusy(false)
+                  }
+                }}
+              >
+                {busy ? 'Removing…' : 'Yes, remove it'}
+              </Button>
+              <Button
+                className="w-full sm:w-auto"
+                variant="ghost"
+                size="sm"
+                disabled={busy}
+                onClick={() => setConfirm(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            className="mt-3.5 w-full sm:w-auto"
+            variant="outline"
+            size="sm"
+            onClick={() => setConfirm(true)}
+          >
+            Remove the demo data
+          </Button>
+        )}
+      </div>
+    </Card>
   )
 }

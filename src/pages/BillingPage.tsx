@@ -200,18 +200,31 @@ export default function BillingPage({
     grandTotal: calc.grandTotal,
   })
 
-  const save = async (thenPrint: boolean) => {
+  /**
+   * Records the bill, and returns the reason if it could not — null when it
+   * is safely in Invoices.
+   *
+   * Every way a bill leaves this screen goes through here first: Save, Save
+   * & Print, Save PDF and WhatsApp. Two of those used to go straight to the
+   * customer without it. That is worse than a missing row in a list — the
+   * invoice number on the sheet the customer is holding was still free as
+   * far as the website knew, so the next bill would be offered the same one.
+   *
+   * Saving twice is harmless. The id is fixed when the screen opens, so a
+   * second save replaces the same row rather than adding another.
+   */
+  const save = async (thenPrint: boolean): Promise<string | null> => {
     const err = validate()
     if (err) {
       say('bad', err)
-      return false
+      return err
     }
     const inv = buildInvoice()
     await saveInvoice(inv)
     onSaved(inv)
     say('ok', `Invoice ${inv.meta.invoiceNo} saved.`)
     if (thenPrint) onPrint({ meta, buyer, items, taxMode, showSignature })
-    return true
+    return null
   }
 
   const openPreview = () => {
@@ -805,10 +818,7 @@ export default function BillingPage({
           onSetTotal={setTotal}
           onClose={() => setPreview(false)}
           onSave={() => save(false)}
-          onPrint={async () => {
-            const ok = await save(false)
-            if (ok) onPrint({ meta, buyer, items, taxMode, showSignature })
-          }}
+          onPrint={() => save(true)}
         />
       ) : null}
 
@@ -933,8 +943,9 @@ function PreviewOverlay({
   onBeginTotalEdit: () => void
   onSetTotal: (target: number, which: 'sub' | 'grand') => void
   onClose: () => void
-  onSave: () => void
-  onPrint: () => void
+  /** records the bill; resolves to null, or to why it could not */
+  onSave: () => Promise<string | null>
+  onPrint: () => Promise<string | null>
 }) {
   const pdfRef = useRef<HTMLDivElement>(null)
 
@@ -972,11 +983,24 @@ function PreviewOverlay({
     window.setTimeout(() => setToast(''), 4000)
   }
 
+  /*
+    The bill is recorded before it is allowed to leave, and nothing leaves if
+    it cannot be. The page behind this overlay is where save() normally
+    reports itself, and none of that is visible from here, so whatever it
+    says comes out in this overlay's own toast instead.
+  */
+  const commit = async (): Promise<boolean> => {
+    const err = await onSave()
+    if (err) flash(err)
+    return !err
+  }
+
   const savePdf = async () => {
     setBusy('pdf')
     try {
+      if (!(await commit())) return
       downloadBlob(await buildPdf(), fileName)
-      flash(`Saved ${fileName}`)
+      flash(`Saved ${fileName} — the bill is in Invoices.`)
     } catch {
       flash('Could not build the PDF. Use Save & Print and choose “Save as PDF”.')
     } finally {
@@ -987,6 +1011,7 @@ function PreviewOverlay({
   const shareOnWhatsapp = async () => {
     setBusy('share')
     try {
+      if (!(await commit())) return
       const message = [
         `Tax Invoice ${meta.invoiceNo || ''}`.trim(),
         `from ${seller.name}`,
@@ -996,7 +1021,7 @@ function PreviewOverlay({
       if (how === 'downloaded-and-opened') {
         flash(`${fileName} downloaded — attach it in the WhatsApp tab that just opened.`)
       } else if (how === 'shared') {
-        flash('Shared.')
+        flash('Shared, and the bill is in Invoices.')
       }
     } catch {
       flash('Could not build the PDF to share.')
@@ -1064,10 +1089,18 @@ function PreviewOverlay({
             </svg>
             {busy === 'share' ? 'Preparing…' : 'WhatsApp'}
           </Button>
-          <Button variant="outline" size="sm" onClick={onSave}>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy !== null}
+            onClick={async () => flash((await onSave()) ?? 'Saved to Invoices.')}
+          >
             Save
           </Button>
-          <Button size="sm" onClick={onPrint}>
+          <Button size="sm" disabled={busy !== null} onClick={async () => {
+            const err = await onPrint()
+            if (err) flash(err)
+          }}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
               <path
                 d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8v-7z"
@@ -1189,7 +1222,10 @@ function PreviewOverlay({
             {money(calc.grandTotal)}
           </div>
         </div>
-        <Button size="sm" onClick={onPrint}>
+        <Button size="sm" disabled={busy !== null} onClick={async () => {
+          const err = await onPrint()
+          if (err) flash(err)
+        }}>
           Save &amp; Print
         </Button>
       </div>

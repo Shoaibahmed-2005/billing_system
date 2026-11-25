@@ -95,6 +95,17 @@ export const SEED_PRODUCTS: Product[] = [
   })),
 ]
 
+/**
+ * The ids of everything shipped as demo data.
+ *
+ * Handover deletes exactly these rows and nothing else. Ids the shop's own
+ * entries get are a prefix plus a base-36 timestamp — "pm4k2x9ab3" — so they
+ * cannot collide with "p001", and a part the client adds can never be caught
+ * by this.
+ */
+export const seedIds = (): Set<string> =>
+  new Set([...SEED_PRODUCTS.map((p) => p.id), ...SEED_COMPANIES.map((c) => c.id)])
+
 export const SEED_COMPANIES: Company[] = [
   {
     id: 'c001',
