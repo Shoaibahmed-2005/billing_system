@@ -303,15 +303,21 @@ Only needed for a second shop or a fresh Supabase project.
 
 ## Before the client uses it for real
 
-- **Check the GSTIN.** The firm block is transcribed from their own printed bill, and the GSTIN
-  on it — `33BHPFN5396M1ZS` — does not pass the check-digit test every GSTIN carries in its last
-  character (those fourteen characters give a final `2`, not `S`). The characters are clear on the
-  sample, so it is likely mistyped in their own Tally. A wrong GSTIN on a tax invoice costs the
-  buyer their input credit, so settle it against the GST registration certificate and correct it
-  in **Settings → Your firm → Edit**. The second phone number and the bank account number came
-  off the same sample and are worth a glance at the same time.
-- **Clear the demo data** once their own products are in: **Settings → Clear all seed data**. That
-  removes the seeded catalogue, the sample companies and any test bills in one go.
+- **Confirm the GSTIN against the certificate.** The firm block was first transcribed from a
+  scan of their printed bill, and three details were misread off it. Their own quotation PDFs —
+  typed rather than scanned — give `33BHFPK3895N1ZS`, `9626458081` and pincode `603 002`, where the
+  scan had given `33BHPFN5396M1ZS`, `9626468081` and `603 001`. The GSTIN is the one that mattered:
+  every GSTIN carries a check digit in its last character, the scanned number fails it (those
+  fourteen characters give a final `2`, not `S`) and the quotation number passes. All three are
+  corrected in `src/lib/seller.ts`. A check digit only proves a number is well formed, though, not
+  that it is theirs — so still hold it against the registration certificate, along with the bank
+  account number, which came off the same scan and has no checksum to test it.
+  **If the firm details were ever saved from Settings → Your firm, that saved copy wins over the
+  code.** Open that screen and confirm the GSTIN reads `33BHFPK3895N1ZS`; if it does not, press
+  the reset there, or edit it by hand.
+- **Clear the demo data** once their own products are in: **Settings → Before the shop starts
+  billing → Remove the demo data**. That deletes the seeded catalogue and sample companies by
+  their shipped ids, clears any test bills, and then takes itself off the page for good.
 - **One shared login.** Everyone at the counter signs in as the same user, so there is no record of
   who billed what. Separate staff accounts and an audit trail are a schema change, not a settings
   toggle — worth deciding before a year of invoices is in there.
