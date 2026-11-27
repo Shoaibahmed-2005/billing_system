@@ -58,11 +58,27 @@ export default function MaintenancePage({
   const [editing, setEditing] = useState<Amc | null>(null)
   const [whoOpen, setWhoOpen] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [trouble, setTrouble] = useState('')
 
+  /**
+   * Loading can fail for one reason that is nobody's mistake: the database
+   * has not had the maintenance table added to it yet. Say so in words
+   * someone can act on, rather than sitting on an empty screen forever.
+   */
   const reload = async () => {
-    setList(await listAmcs())
-    setReminders(await getReminders())
-    setLoaded(true)
+    try {
+      setList(await listAmcs())
+      setReminders(await getReminders())
+      setTrouble('')
+      setLoaded(true)
+    } catch (e) {
+      const said = e instanceof Error ? e.message : String(e)
+      setTrouble(
+        /relation|does not exist|schema cache|404/i.test(said)
+          ? 'The maintenance table is not in the database yet. Run supabase/schema.sql against it, then reload this page.'
+          : said,
+      )
+    }
   }
   useEffect(() => {
     void reload()
@@ -110,6 +126,12 @@ export default function MaintenancePage({
           </Button>
         </div>
       </header>
+
+      {trouble ? (
+        <div className="mb-5 rounded-xl2 border border-clay/40 bg-clay/10 px-4 py-3 text-[12.5px] text-ink">
+          <b>Nothing could be loaded.</b> {trouble}
+        </div>
+      ) : null}
 
       {reminders.phones.length === 0 && loaded ? (
         <div className="mb-5 rounded-xl2 border border-copper/40 bg-copper-soft/40 px-4 py-3 text-[12.5px] text-ink-2">
