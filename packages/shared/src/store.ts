@@ -31,6 +31,13 @@ export const getInvoice = (id: string) => backend.getInvoice(id)
 export const saveInvoice = backend.saveInvoice.bind(backend)
 export const deleteInvoice = (id: string) => backend.deleteInvoice(id)
 
+export const listAmcs = () => backend.listAmcs()
+export const saveAmc = backend.saveAmc.bind(backend)
+export const deleteAmc = (id: string) => backend.deleteAmc(id)
+
+export const getReminders = () => backend.getReminders()
+export const saveReminders = backend.saveReminders.bind(backend)
+
 export const getSeller = () => backend.getSeller()
 export const saveSeller = backend.saveSeller.bind(backend)
 export const resetSeller = () => backend.resetSeller()

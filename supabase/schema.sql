@@ -103,3 +103,40 @@ end $$;
 --     );
 --   end loop;
 -- end $$;
+
+-- ------------------------------------------------------------------- amcs ---
+-- Annual maintenance. Naveen Airtech supplies a machine and then services it
+-- for a year at a time; this is what is covered, when the year is up, and who
+-- to remind before it lapses.
+--
+-- The dates are text, in the dotted form the counter types and every bill
+-- prints ("26.11.2027"). Nothing is queried by date range — the list is read
+-- whole and compared in the browser — so a real date column would only mean
+-- converting at both ends.
+--
+-- amount is nullable on purpose: some contracts are priced between the firm
+-- and the customer and the figure never reaches the website.
+create table if not exists public.amcs (
+  id               text primary key,
+  company_id       text,
+  company_name     text        not null default '',
+  equipment        text        not null default '',
+  product_id       text,
+  invoice_no       text        not null default '',
+  serial_no        text        not null default '',
+  start_date       text        not null default '',
+  end_date         text        not null default '',
+  amount           numeric,
+  notes            text        not null default '',
+  active           boolean     not null default true,
+  last_reminded_at timestamptz,
+  created_at       timestamptz not null default now()
+);
+
+create index if not exists amcs_end_idx     on public.amcs (end_date);
+create index if not exists amcs_company_idx on public.amcs (company_id);
+
+alter table public.amcs enable row level security;
+
+drop policy if exists amcs_rw on public.amcs;
+create policy amcs_rw on public.amcs for all to authenticated using (true) with check (true);

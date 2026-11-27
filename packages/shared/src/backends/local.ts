@@ -1,5 +1,7 @@
 import type { Company, Invoice, Product, Seller } from '../types'
 import { SELLER as DEFAULT_SELLER } from '../seller'
+import type { Amc } from '../amc'
+import { DEFAULT_REMINDERS, type ReminderSettings } from '../reminders'
 import { SEED_COMPANIES, SEED_PRODUCTS, seedIds } from '../seed'
 import type { Backend } from './types'
 
@@ -9,7 +11,9 @@ const KEY = {
   products: 'nat.products',
   companies: 'nat.companies',
   invoices: 'nat.invoices',
+  amcs: 'nat.amcs',
   seller: 'nat.seller',
+  reminders: 'nat.reminders',
   seeded: 'nat.seeded.v1',
 } as const
 
@@ -116,6 +120,32 @@ export const localBackend: Backend = {
       KEY.invoices,
       read<Invoice[]>(KEY.invoices, []).filter((i) => i.id !== id),
     )
+  },
+
+  async listAmcs() {
+    return read<Amc[]>(KEY.amcs, []).sort((a, b) => a.endDate.localeCompare(b.endDate))
+  },
+
+  async saveAmc(a) {
+    const all = read<Amc[]>(KEY.amcs, [])
+    const i = all.findIndex((x) => x.id === a.id)
+    if (i >= 0) all[i] = a
+    else all.push(a)
+    write(KEY.amcs, all)
+    return a
+  },
+
+  async deleteAmc(id) {
+    write(KEY.amcs, read<Amc[]>(KEY.amcs, []).filter((a) => a.id !== id))
+  },
+
+  async getReminders() {
+    return { ...DEFAULT_REMINDERS, ...read<Partial<ReminderSettings>>(KEY.reminders, {}) }
+  },
+
+  async saveReminders(r) {
+    write(KEY.reminders, r)
+    return r
   },
 
   async getSeller() {

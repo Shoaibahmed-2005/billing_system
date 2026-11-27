@@ -1,6 +1,8 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Company, Invoice, Product, Seller } from '../types'
 import { SELLER as DEFAULT_SELLER } from '../seller'
+import type { Amc } from '../amc'
+import { DEFAULT_REMINDERS, type ReminderSettings } from '../reminders'
 import { SEED_COMPANIES, SEED_PRODUCTS, seedIds } from '../seed'
 import type { Backend } from './types'
 
@@ -156,6 +158,65 @@ const fromInvoice = (i: Invoice): InvoiceRow => ({
   created_at: i.createdAt,
 })
 
+/*
+  end_date is a plain text column holding "26.11.2027", not a date.
+
+  It is what the counter types and what every other date in this system
+  looks like, and a real date column would mean converting at both ends for
+  no gain — nothing is queried by date range, only listed and compared in
+  the browser. The index is on it anyway, so the ordered list is cheap.
+*/
+type AmcRow = {
+  id: string
+  company_id: string | null
+  company_name: string
+  equipment: string
+  product_id: string | null
+  invoice_no: string
+  serial_no: string
+  start_date: string
+  end_date: string
+  amount: number | null
+  notes: string
+  active: boolean
+  last_reminded_at: string | null
+  created_at: string
+}
+
+const toAmc = (r: AmcRow): Amc => ({
+  id: r.id,
+  companyId: r.company_id,
+  companyName: r.company_name,
+  equipment: r.equipment,
+  productId: r.product_id,
+  invoiceNo: r.invoice_no,
+  serialNo: r.serial_no,
+  startDate: r.start_date,
+  endDate: r.end_date,
+  amount: r.amount === null ? null : Number(r.amount),
+  notes: r.notes,
+  active: r.active,
+  lastRemindedAt: r.last_reminded_at ?? undefined,
+  createdAt: r.created_at,
+})
+
+const fromAmc = (a: Amc): AmcRow => ({
+  id: a.id,
+  company_id: a.companyId,
+  company_name: a.companyName,
+  equipment: a.equipment,
+  product_id: a.productId,
+  invoice_no: a.invoiceNo,
+  serial_no: a.serialNo,
+  start_date: a.startDate,
+  end_date: a.endDate,
+  amount: a.amount,
+  notes: a.notes,
+  active: a.active,
+  last_reminded_at: a.lastRemindedAt ?? null,
+  created_at: a.createdAt,
+})
+
 /**
  * Records that this database has had its demo data already, so that an empty
  * catalogue is never mistaken for a fresh install.
@@ -260,6 +321,39 @@ export const supabaseBackend: Backend = {
 
   async deleteInvoice(id) {
     fail('deleting invoice', (await supabase().from('invoices').delete().eq('id', id)).error)
+  },
+
+  async listAmcs() {
+    const { data, error } = await supabase().from('amcs').select('*').order('end_date')
+    fail('loading maintenance contracts', error)
+    return (data as AmcRow[]).map(toAmc)
+  },
+
+  async saveAmc(a) {
+    fail('saving the contract', (await supabase().from('amcs').upsert(fromAmc(a))).error)
+    return a
+  },
+
+  async deleteAmc(id) {
+    fail('deleting the contract', (await supabase().from('amcs').delete().eq('id', id)).error)
+  },
+
+  async getReminders() {
+    const { data, error } = await supabase()
+      .from('settings')
+      .select('value')
+      .eq('key', 'reminders')
+      .maybeSingle()
+    fail('loading the reminder list', error)
+    return { ...DEFAULT_REMINDERS, ...((data?.value as Partial<ReminderSettings>) ?? {}) }
+  },
+
+  async saveReminders(r) {
+    fail(
+      'saving the reminder list',
+      (await supabase().from('settings').upsert({ key: 'reminders', value: r })).error,
+    )
+    return r
   },
 
   async getSeller() {

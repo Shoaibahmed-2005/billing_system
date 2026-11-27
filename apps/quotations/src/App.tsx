@@ -25,6 +25,7 @@ import { money, todayDotted } from '@naveen/shared/format'
 import SignIn from '@naveen/shared/SignIn'
 import { Button, Card, CardHead, Field, Input, Select } from '@naveen/shared/ui'
 import QuotationDocument from './components/QuotationDocument'
+import MaintenancePage from './MaintenancePage'
 import './styles/quotation.css'
 
 /**
@@ -62,22 +63,20 @@ export default function App() {
     )
   }
   if (!signedIn) return <SignIn />
-  return <Desk />
+  return <Shell />
 }
 
-function Desk() {
+type View = 'quotations' | 'maintenance'
+
+/**
+ * Two screens behind two tabs, sharing one load of the companies and the
+ * catalogue. Both come from the billing counter's database.
+ */
+function Shell() {
+  const [view, setView] = useState<View>('quotations')
   const [seller, setSeller] = useState<Seller>(SELLER)
   const [companies, setCompanies] = useState<Company[]>([])
   const [products, setProducts] = useState<Product[]>([])
-
-  const [template, setTemplate] = useState<QuoteTemplate>('spares')
-  const [meta, setMeta] = useState<QuoteMeta>(() => emptyQuoteMeta('spares', todayDotted()))
-  const [buyerId, setBuyerId] = useState('')
-  const [items, setItems] = useState<QuoteItem[]>([])
-  const [busy, setBusy] = useState(false)
-  const [note, setNote] = useState('')
-
-  const sheet = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     void (async () => {
@@ -87,6 +86,77 @@ function Desk() {
       setSeller(await getSeller())
     })()
   }, [])
+
+  return (
+    <>
+      <nav className="sticky top-0 z-30 border-b border-line bg-card/90 backdrop-blur">
+        <div className="mx-auto flex max-w-[1400px] items-center gap-1.5 px-4 py-2.5 sm:px-6">
+          <Tab on={view === 'quotations'} onClick={() => setView('quotations')}>
+            Quotations
+          </Tab>
+          <Tab on={view === 'maintenance'} onClick={() => setView('maintenance')}>
+            Maintenance
+          </Tab>
+          {authEnabled ? (
+            <Button
+              className="ml-auto"
+              variant="ghost"
+              size="sm"
+              onClick={() => void signOut()}
+            >
+              Sign out
+            </Button>
+          ) : null}
+        </div>
+      </nav>
+
+      {view === 'quotations' ? (
+        <Desk seller={seller} companies={companies} products={products} />
+      ) : (
+        <MaintenancePage companies={companies} products={products} />
+      )}
+    </>
+  )
+}
+
+function Tab({
+  on,
+  onClick,
+  children,
+}: {
+  on: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`rounded-full px-4 py-1.5 text-[13.5px] font-bold transition-colors ${
+        on ? 'bg-espresso text-bone' : 'text-ink-2 hover:bg-bone-2 hover:text-ink'
+      }`}
+    >
+      {children}
+    </button>
+  )
+}
+
+function Desk({
+  seller,
+  companies,
+  products,
+}: {
+  seller: Seller
+  companies: Company[]
+  products: Product[]
+}) {
+  const [template, setTemplate] = useState<QuoteTemplate>('spares')
+  const [meta, setMeta] = useState<QuoteMeta>(() => emptyQuoteMeta('spares', todayDotted()))
+  const [buyerId, setBuyerId] = useState('')
+  const [items, setItems] = useState<QuoteItem[]>([])
+  const [busy, setBusy] = useState(false)
+  const [note, setNote] = useState('')
+
+  const sheet = useRef<HTMLDivElement>(null)
 
   /*
     Switching template keeps the buyer and the lines — they are the same
@@ -186,16 +256,9 @@ function Desk() {
             {seller.name} · the same companies and parts as the billing counter
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" disabled={busy} onClick={savePdf}>
-            {busy ? 'Building…' : 'Save PDF'}
-          </Button>
-          {authEnabled ? (
-            <Button variant="ghost" size="sm" onClick={() => void signOut()}>
-              Sign out
-            </Button>
-          ) : null}
-        </div>
+        <Button variant="outline" size="sm" disabled={busy} onClick={savePdf}>
+          {busy ? 'Building…' : 'Save PDF'}
+        </Button>
       </header>
 
       {/* the choice that changes the whole document, first thing on the page */}

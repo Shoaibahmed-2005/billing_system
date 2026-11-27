@@ -1,3 +1,5 @@
+import type { Amc } from '../amc'
+import type { ReminderSettings } from '../reminders'
 import type { Company, Invoice, Product, Seller } from '../types'
 
 /**
@@ -21,6 +23,13 @@ export interface Backend {
   getInvoice(id: string): Promise<Invoice | undefined>
   saveInvoice(inv: Invoice): Promise<Invoice>
   deleteInvoice(id: string): Promise<void>
+
+  listAmcs(): Promise<Amc[]>
+  saveAmc(a: Amc): Promise<Amc>
+  deleteAmc(id: string): Promise<void>
+
+  getReminders(): Promise<ReminderSettings>
+  saveReminders(r: ReminderSettings): Promise<ReminderSettings>
 
   getSeller(): Promise<Seller>
   saveSeller(s: Seller): Promise<Seller>
