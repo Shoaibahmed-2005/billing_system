@@ -32,9 +32,9 @@ import { Button, Card, Empty, Field, Input, Modal, Pill, Select } from '@naveen/
  * renewed like an insurance policy. What this screen is for is the renewal
  * not being missed.
  *
- * The reminder goes to Naveen Airtech's own people, not to the customer —
- * it tells them a visit is coming up, for which company and which machine
- * and by when. Nothing here messages a customer.
+ * The reminder goes to every number on the list in the settings — as many
+ * as they care to add, whoever they belong to. It says which company, which
+ * machine, and by when.
  *
  * Lapsed contracts sit at the top of the due list, above ones merely
  * expiring soon. A contract that ran out three weeks ago is the urgent one,
@@ -103,7 +103,7 @@ export default function MaintenancePage({
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setWhoOpen(true)}>
-            Who gets told{reminders.phones.length ? ` (${reminders.phones.length})` : ''}
+            Reminder numbers{reminders.phones.length ? ` (${reminders.phones.length})` : ''}
           </Button>
           <Button size="sm" onClick={() => setEditing(blank())}>
             Add a contract
@@ -113,8 +113,8 @@ export default function MaintenancePage({
 
       {reminders.phones.length === 0 && loaded ? (
         <div className="mb-5 rounded-xl2 border border-copper/40 bg-copper-soft/40 px-4 py-3 text-[12.5px] text-ink-2">
-          No one is on the reminder list yet, so there is nowhere for a renewal notice to go.
-          Add the firm's own numbers under <b>Who gets told</b>.
+          No numbers on the reminder list yet, so there is nowhere for a renewal notice to go.
+          Add them under <b>Reminder numbers</b>.
         </div>
       ) : null}
 
@@ -253,7 +253,7 @@ function Row({
   )
 }
 
-/** Opens WhatsApp with the renewal details ready to send to one of the firm's own numbers. */
+/** Opens WhatsApp with the renewal details ready to send to one of the reminder numbers. */
 function TellButton({ amc, to }: { amc: Amc; to: ReminderPhone }) {
   const digits = whatsappNumber(to.phone)
   const text = reminderText(amc)
@@ -304,8 +304,8 @@ function WhoGetsTold({
     <Modal
       open
       onClose={onClose}
-      title="Who gets told"
-      subtitle="The firm's own numbers. Renewal notices go to all of them — never to the customer."
+      title="Reminder numbers"
+      subtitle="Every number here gets the renewal reminder. Add as many as you like."
       width="max-w-xl"
     >
       <div className="space-y-4">
@@ -326,7 +326,7 @@ function WhoGetsTold({
 
           {s.phones.length === 0 ? (
             <p className="text-[12px] text-muted">
-              Nobody yet. Add the counter, the engineer, whoever should know a visit is coming.
+              None yet. Add whoever should know a renewal is coming up.
             </p>
           ) : (
             <div className="space-y-2">

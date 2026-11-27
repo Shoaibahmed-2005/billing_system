@@ -7,10 +7,10 @@
  *
  * Three things the client was specific about.
  *
- * The reminder goes to Naveen Airtech, not to the customer. It is the firm
- * that needs to know a renewal is coming up, for which company and which
- * machine, so they can go and do the visit. Nothing here messages a
- * customer.
+ * The reminder goes to a list of numbers kept in the settings, however many
+ * of them there are and whoever they belong to. What it carries is the
+ * facts someone needs in order to act: which company, which machine, when
+ * it started and when it runs out.
  *
  * It repeats. One message on the last day is no use to anybody — it starts
  * several days out and goes again each day until the contract is renewed or
@@ -161,7 +161,7 @@ export const remindedToday = (amc: Amc, today = new Date()): boolean => {
 }
 
 /**
- * The words that go to the firm's own people.
+ * The words that go out.
  *
  * It names the company, the machine and both dates, because that is what
  * someone reading it on a phone needs in order to act without opening

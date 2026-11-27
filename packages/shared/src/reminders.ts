@@ -1,11 +1,15 @@
 /**
- * Who at Naveen Airtech gets told about a renewal.
+ * The numbers a renewal reminder goes to.
  *
- * Not the customer — the firm. The point of the reminder is that their own
- * people know a visit is coming up, so the numbers here are the counter's,
- * the engineer's, the owner's. The client asked for several rather than one,
- * which is the difference between a renewal being handled and a renewal
- * waiting on whoever happened to be looking at their phone.
+ * Just a list. Whoever has access to the site adds numbers, and every one
+ * of them gets the message — the counter, the engineer, the owner, the
+ * customer if that is what they want. The code does not assume whose they
+ * are, which is the point: it is a setting, not a rule.
+ *
+ * Several rather than one is the whole point, and the client's reason for
+ * it is worth keeping: three or four people at the firm watch these, so
+ * that one of them forgetting is not a renewal missed. A single number is
+ * a single point of failure, and the failure is silent.
  *
  * Kept in the settings table beside the firm's printed block, so adding a
  * number is not a code change and not a database migration.
@@ -13,7 +17,7 @@
 
 export interface ReminderPhone {
   id: string
-  /** who it is, for the list — "Kumar", "Workshop" */
+  /** a label for the list — "Kumar", "Workshop", "Delta purchase" */
   name: string
   phone: string
 }
