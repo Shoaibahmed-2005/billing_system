@@ -32,17 +32,39 @@ export interface QuoteItem {
   kind: ItemKind
 }
 
-/** The lines under TERMS & CONDITIONS. Which ones print depends on the template. */
-export interface QuoteTerms {
-  payment: string
-  delivery: string
-  freight: string
-  /** spares only */
-  gst: string
-  /** machine only */
-  validity: string
-  pf: string
-  warranty: string
+/**
+ * One line under TERMS & CONDITIONS — "Payment", "100% Advance".
+ *
+ * A list rather than a fixed set of fields, because which lines appear is
+ * decided per quotation and not by the template. The counter adds the ones
+ * this job needs and types the words; a quotation with no warranty simply
+ * has no Warranty line, rather than an empty one.
+ */
+export interface QuoteTermRow {
+  id: string
+  label: string
+  value: string
+}
+
+/**
+ * The labels each template usually carries, in the order the samples print
+ * them. They are what the + buttons offer and what a new quotation starts
+ * with — a starting point, not a rule.
+ */
+export const TERM_LABELS: Record<QuoteTemplate, string[]> = {
+  spares: ['Payment', 'Delivery', 'Freight', 'GST'],
+  machine: ['Payment', 'Delivery', 'Freight', 'Validity', 'P & F', 'Warranty'],
+}
+
+/** Wording the firm reaches for, offered as a starting value. */
+export const TERM_DEFAULTS: Record<string, string> = {
+  Payment: '100% Advance',
+  Delivery: 'One Week From the Date of Confirmation',
+  Freight: 'Nil',
+  GST: '18%',
+  Validity: '45 days',
+  'P & F': 'Nil',
+  Warranty: '1 year from the date of supply made against manufacturing defects',
 }
 
 export interface QuoteMeta {
@@ -57,7 +79,7 @@ export interface QuoteMeta {
   subject: string
   /** printed as "GST 18%" or "GST 18% Extra" depending on the template */
   gstRate: number
-  terms: QuoteTerms
+  terms: QuoteTermRow[]
   signatory: string
   signatoryTitle: string
   signatoryCell: string
@@ -89,15 +111,19 @@ export const calcQuote = (items: QuoteItem[], gstRate: number): QuoteCalc => {
   return { lines, subTotal, gst, total: round2(subTotal + gst) }
 }
 
-export const DEFAULT_TERMS: QuoteTerms = {
-  payment: '100% Advance',
-  delivery: 'One Week From the Date of Confirmation',
-  freight: 'Nil',
-  gst: '18%',
-  validity: '45 days',
-  pf: 'Nil',
-  warranty: '1 year from the date of supply made against manufacturing defects',
-}
+let termSeq = 0
+export const newTermRow = (label: string): QuoteTermRow => ({
+  id: `t${++termSeq}${Math.random().toString(36).slice(2, 6)}`,
+  label,
+  value: TERM_DEFAULTS[label] ?? '',
+})
+
+export const defaultTerms = (template: QuoteTemplate): QuoteTermRow[] =>
+  TERM_LABELS[template].map((l) =>
+    l === 'Freight' && template === 'machine'
+      ? { ...newTermRow(l), value: 'To Pay' }
+      : newTermRow(l),
+  )
 
 export const emptyQuoteMeta = (template: QuoteTemplate, dated: string): QuoteMeta => ({
   template,
@@ -107,7 +133,7 @@ export const emptyQuoteMeta = (template: QuoteTemplate, dated: string): QuoteMet
   refDate: '',
   subject: template === 'machine' ? 'Quotation For  Air Compressor & Air Dryer' : '',
   gstRate: 18,
-  terms: { ...DEFAULT_TERMS, freight: template === 'machine' ? 'To Pay' : 'Nil' },
+  terms: defaultTerms(template),
   signatory: template === 'machine' ? 'Kumar,' : 'C. Kumar,',
   signatoryTitle: 'Executive - Customer Support.',
   signatoryCell: 'Cell : 99943 44413.',

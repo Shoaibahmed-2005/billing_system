@@ -13,6 +13,8 @@ import type { Company, Product, Seller } from '@naveen/shared/types'
 import {
   calcQuote,
   emptyQuoteMeta,
+  newTermRow,
+  TERM_LABELS,
   type QuoteItem,
   type QuoteMeta,
   type QuoteTemplate,
@@ -116,8 +118,28 @@ function Desk() {
       },
     ])
 
+  /*
+    Most of a quotation is typed, not picked. The catalogue is there for the
+    parts that are in it; this is for everything else, which is most of what
+    they quote for.
+  */
+  const addBlankLine = () =>
+    setItems((list) => [
+      ...list,
+      { lineId: newId('q'), productId: null, description: '', hsn: '', qty: 1, unit: '', rate: 0, kind: 'goods' },
+    ])
+
   const patch = (lineId: string, p: Partial<QuoteItem>) =>
     setItems((list) => list.map((i) => (i.lineId === lineId ? { ...i, ...p } : i)))
+
+  const addTerm = (label: string) =>
+    setMeta((m) => ({ ...m, terms: [...m.terms, newTermRow(label)] }))
+
+  const patchTerm = (id: string, p: Partial<{ label: string; value: string }>) =>
+    setMeta((m) => ({ ...m, terms: m.terms.map((t) => (t.id === id ? { ...t, ...p } : t)) }))
+
+  const removeTerm = (id: string) =>
+    setMeta((m) => ({ ...m, terms: m.terms.filter((t) => t.id !== id) }))
 
   const remove = (lineId: string) => setItems((list) => list.filter((i) => i.lineId !== lineId))
 
@@ -254,20 +276,48 @@ function Desk() {
           </Card>
 
           <Card>
-            <CardHead title="Terms" subtitle="Printed under TERMS & CONDITIONS." />
-            <div className="grid gap-3.5 px-4 py-4 sm:px-5">
-              <Term label="Payment" meta={meta} setMeta={setMeta} field="payment" />
-              <Term label="Delivery" meta={meta} setMeta={setMeta} field="delivery" />
-              <Term label="Freight" meta={meta} setMeta={setMeta} field="freight" />
-              {template === 'machine' ? (
-                <>
-                  <Term label="Validity" meta={meta} setMeta={setMeta} field="validity" />
-                  <Term label="P & F" meta={meta} setMeta={setMeta} field="pf" />
-                  <Term label="Warranty" meta={meta} setMeta={setMeta} field="warranty" />
-                </>
-              ) : (
-                <Term label="GST" meta={meta} setMeta={setMeta} field="gst" />
-              )}
+            <CardHead
+              title="Terms"
+              subtitle="Only the lines added here are printed. Add more with the + buttons by the sheet."
+            />
+            <div className="space-y-2.5 px-4 py-4 sm:px-5">
+              {meta.terms.length === 0 ? (
+                <p className="text-[12.5px] text-muted">
+                  No terms on this quotation. TERMS &amp; CONDITIONS will not be printed at all.
+                </p>
+              ) : null}
+              {/*
+                Widths are set on the wrappers, not on the inputs. Input
+                carries its own w-full, and which of two Tailwind classes
+                wins depends on their order in the generated stylesheet
+                rather than the order they are written here — so the narrow
+                one quietly came out full width.
+              */}
+              {meta.terms.map((t) => (
+                <div key={t.id} className="flex items-center gap-2">
+                  <div className="w-[96px] shrink-0">
+                    <Input
+                      value={t.label}
+                      onChange={(e) => patchTerm(t.id, { label: e.target.value })}
+                      aria-label="Terms line name"
+                    />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <Input
+                      value={t.value}
+                      onChange={(e) => patchTerm(t.id, { value: e.target.value })}
+                      aria-label={t.label}
+                    />
+                  </div>
+                  <button
+                    onClick={() => removeTerm(t.id)}
+                    aria-label={`Remove ${t.label}`}
+                    className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-muted transition-colors hover:bg-clay/12 hover:text-clay"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
             </div>
           </Card>
 
@@ -288,6 +338,12 @@ function Desk() {
                 placeholder="Search the catalogue to add a line…"
               />
               <div className="mt-2.5 flex flex-wrap gap-1.5">
+                <button
+                  onClick={addBlankLine}
+                  className="rounded-full border border-dashed border-line-2 bg-card px-3 py-1.5 text-[12px] font-semibold text-muted transition-colors hover:border-copper hover:text-copper"
+                >
+                  + Blank line
+                </button>
                 {shown.map((p) => (
                   <button
                     key={p.id}
@@ -343,6 +399,34 @@ function Desk() {
 
         {/* the sheet itself, at half size so a whole page fits on screen */}
         <div className="min-w-0">
+          {/*
+            The + buttons sit against the sheet rather than in the form,
+            because what they do is add a line to the sheet — press one and
+            it appears under TERMS & CONDITIONS, where you can see it.
+          */}
+          <div className="mb-3 flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[11px] font-bold uppercase tracking-[0.09em] text-muted">
+              Add a terms line
+            </span>
+            {TERM_LABELS[template]
+              .filter((l) => !meta.terms.some((t) => t.label === l))
+              .map((l) => (
+                <button
+                  key={l}
+                  onClick={() => addTerm(l)}
+                  className="rounded-full border border-line-2 bg-card px-3 py-1 text-[12px] font-semibold text-ink transition-colors hover:border-copper hover:text-copper"
+                >
+                  + {l}
+                </button>
+              ))}
+            <button
+              onClick={() => addTerm('')}
+              className="rounded-full border border-dashed border-line-2 bg-card px-3 py-1 text-[12px] font-semibold text-muted transition-colors hover:border-copper hover:text-copper"
+            >
+              + Something else
+            </button>
+          </div>
+
           <div className="overflow-auto rounded-xl2 border border-line bg-bone-2 p-4">
             <div
               ref={sheet}
@@ -395,23 +479,4 @@ function TemplateButton({
   )
 }
 
-function Term({
-  label,
-  field,
-  meta,
-  setMeta,
-}: {
-  label: string
-  field: keyof QuoteMeta['terms']
-  meta: QuoteMeta
-  setMeta: (m: QuoteMeta) => void
-}) {
-  return (
-    <Field label={label}>
-      <Input
-        value={meta.terms[field]}
-        onChange={(e) => setMeta({ ...meta, terms: { ...meta.terms, [field]: e.target.value } })}
-      />
-    </Field>
-  )
-}
+

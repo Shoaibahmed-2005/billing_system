@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import type { Company, Seller } from '@naveen/shared/types'
 import type { QuoteItem, QuoteMeta } from '@naveen/shared/quote'
 import { calcQuote, quoteLineValue } from '@naveen/shared/quote'
@@ -220,7 +221,8 @@ export default function QuotationDocument({
             </table>
           )}
 
-          <div className="quo-terms">
+          {/* no terms, no heading — an empty TERMS block would look like a mistake */}
+          <div className="quo-terms" style={meta.terms.length ? undefined : { display: 'none' }}>
             {machine ? (
               <div className="t-head-band">TERMS &amp; CONDITIONS</div>
             ) : (
@@ -229,28 +231,18 @@ export default function QuotationDocument({
               </div>
             )}
 
+            {/*
+              Whatever rows this quotation was given, in the order they were
+              added. A job with nothing to say about warranty has no Warranty
+              line at all, rather than an empty one.
+            */}
             <dl>
-              <dt>Payment</dt>
-              <dd>{meta.terms.payment}</dd>
-              <dt>Delivery</dt>
-              <dd>{meta.terms.delivery}</dd>
-              <dt>Freight</dt>
-              <dd>{meta.terms.freight}</dd>
-              {machine ? (
-                <>
-                  <dt>Validity</dt>
-                  <dd>{meta.terms.validity}</dd>
-                  <dt>P &amp; F</dt>
-                  <dd>{meta.terms.pf}</dd>
-                  <dt>Warranty</dt>
-                  <dd>{meta.terms.warranty}</dd>
-                </>
-              ) : (
-                <>
-                  <dt>GST</dt>
-                  <dd>{meta.terms.gst}</dd>
-                </>
-              )}
+              {meta.terms.map((t) => (
+                <Fragment key={t.id}>
+                  <dt>{t.label}</dt>
+                  <dd>{t.value}</dd>
+                </Fragment>
+              ))}
             </dl>
           </div>
 
