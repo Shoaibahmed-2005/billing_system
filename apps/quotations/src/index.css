@@ -1,0 +1,13 @@
+/*
+  The quotations desk's stylesheet.
+
+  Palette, base styles and animations come from the shared package, so this
+  site and the billing counter cannot drift apart. Anything specific to a
+  printed quotation belongs below the imports.
+*/
+@import 'tailwindcss';
+@import '../../../packages/shared/src/theme.css';
+
+/* The shared buttons and cards live outside this app; Tailwind only
+   generates classes for files it is told to look at. */
+@source '../../../packages/shared/src';

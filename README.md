@@ -1,9 +1,19 @@
-# Naveen Airtech — Billing
+# Naveen Airtech
 
-**Live: https://billing-system-one-swart.vercel.app**
+**Billing counter — live: https://billing-system-one-swart.vercel.app**
 
-A billing counter for Naveen Airtech (Chengalpattu). Pick the buyer, tap the parts, settle the
-price, and the printed invoice comes out matching the firm's existing Tally bill exactly.
+Two sites for Naveen Airtech (Chengalpattu), sharing one database and one set of parts.
+
+- **`apps/billing`** — the billing counter. Pick the buyer, tap the parts, settle the price, and
+  the printed invoice comes out matching the firm's existing Tally bill exactly.
+- **`apps/quotations`** — the quotations desk, and later the annual-maintenance renewals. The
+  frame is up and reads the same catalogue; the printed quotation is not built yet.
+- **`packages/shared`** — everything both of them use: the data layer, the GST maths, the PDF
+  engine, the spreadsheet reader, the sign-in screen, the buttons and the palette.
+
+One copy of the shared code is the whole point of the arrangement. The firm's GSTIN was wrong on
+every bill for a while; it was one line to fix because it lives in one file. In two repositories
+it would have been two fixes, and the second is the one people forget.
 
 Sign in with the shop account. There is no sign-up — the one account is created in the Supabase
 dashboard, and the session is kept per device, so after the first time it opens straight to the
@@ -23,7 +33,17 @@ npm install
 npm run dev
 ```
 
-Then open http://localhost:5173.
+Then open http://localhost:5173 for the billing counter.
+
+```bash
+npm run dev:quotations
+```
+
+Then open http://localhost:5174 for the quotations desk. Both can run at once.
+
+`npm install` is run once, at the top of the repository — it installs for both sites. Everything
+else is a workspace script: `npm run build:billing`, `npm run build:quotations`, `npm run build:all`,
+`npm run typecheck`.
 
 Without `.env.local` it runs on this machine's browser storage and skips the login entirely, which
 is the quickest way to try something out without touching live data. Copy `.env.example` to
@@ -292,6 +312,32 @@ with no login — that is the browser-storage fallback, not the database.
 Nothing needs configuring on the Supabase side: the app signs in with email and password, so
 there are no redirect URLs to whitelist.
 
+### Two sites, two Vercel projects, one repository
+
+A Vercel project serves one site at one address, so two sites means two projects. They can both
+point at this repository.
+
+**The billing project needs no change.** Its Root Directory stays at the top of the repository;
+the `vercel.json` there now builds `apps/billing` and serves `apps/billing/dist`. That was
+deliberate — moving the app into a subfolder should not require anyone to touch the dashboard of
+a site that is already live.
+
+**The quotations project is new.** Add Project, same Git repository, then set:
+
+| Setting | Value |
+| --- | --- |
+| Root Directory | `apps/quotations` |
+| Build / Output | leave alone — `apps/quotations/vercel.json` sets them |
+| Environment variables | the same two as the billing project |
+
+Its build command steps up to the top of the repository first, because the shared package and
+the lockfile live there. If Vercel offers "Include files outside the Root Directory", it must
+stay on.
+
+Both projects redeploy on every push to `main`, including pushes that only touch the other app.
+That is wasteful rather than wrong; Vercel's Ignored Build Step can be pointed at a path check
+later if the builds ever get slow enough to care about.
+
 ### Setting it up again from scratch
 
 Only needed for a second shop or a fresh Supabase project.
@@ -403,27 +449,44 @@ sheet uses, so it holds on a phone too, where the font stack resolves to Roboto 
 ## Layout of the code
 
 ```
-src/
-  lib/
-    seller.ts     Naveen Airtech's default details + state list
-    types.ts      Product, Company, Invoice, InvoiceItem, Seller
-    gst.ts        CGST/SGST vs IGST, per-line and per-HSN totals, rounding
-    words.ts      Rupees in words, Tally-style ("... Five Hundred and Seventy Nine Only")
-    format.ts     Number formatting matched to the reference bill
-    pdf.ts        A4 PDF export, the month batch, and the WhatsApp hand-off
-    auth.ts       Sign in / sign out, and whether a sign-in is needed at all
-    store.ts      Picks a backend and re-exports it
-    backends/     local.ts (browser storage), supabase.ts, types.ts (the interface)
-    seed.ts       Demo products and companies
-  components/
-    InvoiceDocument.tsx   The bill — printed, previewed and edited from this one component
-    SignIn.tsx            The front door, shown only when Supabase is configured
-    ...
-    invoiceNo.ts  Next number, previous bill, and the date/order of a bill
-    signature.ts  Cuts the white background off an uploaded signature
-  components/
-    BillArchive.tsx       Year -> month -> bills, shared by Invoices and Repeat
-  styles/invoice.css      Print styles in mm — owns the printed document
-  pages/                  One file per screen
-supabase/schema.sql       Tables, indexes and row level security
+apps/
+  billing/                  The billing counter (the live site)
+    src/
+      lib/fit.ts            Shrink-to-fit so a six-figure total stays in its column
+      lib/gstSheet.ts       The month's SALES sheet, in the firm's own layout
+      components/
+        InvoiceDocument.tsx The bill — printed, previewed and edited from this one component
+        BillArchive.tsx     Year -> month -> bills, shared by Invoices and Repeat
+        BackupCard.tsx      The three downloads and the importer, in Settings
+        GstSheetModal.tsx   The month on screen before it is downloaded
+      pages/                One file per screen
+      styles/invoice.css    Print styles in mm — owns the printed document
+      index.css             Pulls in Tailwind, the shared theme, and the bill styles
+  quotations/               The quotations desk — frame only so far
+
+packages/shared/src/        Everything both sites use
+  types.ts                  Product, Company, Invoice, InvoiceItem, Seller
+  seller.ts                 Naveen Airtech's own details + the state list
+  gst.ts                    CGST/SGST vs IGST, per-line and per-HSN totals, rounding
+  words.ts                  Rupees in words, Tally-style
+  format.ts                 Number formatting matched to the reference bill
+  invoiceNo.ts              Next number, previous bill, and the date/order of a bill
+  billPdf.ts                Draws a document into a PDF by tracing the laid-out page
+  pdf.ts                    File names, downloads, and the WhatsApp hand-off
+  xlsx.ts                   Reads and writes .xlsx with nothing installed
+  backup.ts                 Products, companies and bills to a sheet, and back again
+  store.ts                  Picks a backend and re-exports it
+  backends/                 local.ts (browser storage), supabase.ts, types.ts (the interface)
+  auth.ts                   Sign in / sign out, and whether a sign-in is needed at all
+  signature.ts              Cuts the white background off an uploaded signature
+  seed.ts                   Demo products and companies, and which ids they are
+  SignIn.tsx                The front door, shown only when Supabase is configured
+  ui.tsx                    Button, Card, Modal, Field, Pill, Empty
+  theme.css                 The palette, base styles and animations
+
+supabase/schema.sql         Tables, indexes and row level security
 ```
+
+A module moves into `packages/shared` when the second site needs it, not before. The rule of
+thumb that has held: anything that knows about the database, the tax, the money or the look is
+shared; anything that knows about a *bill* belongs to the billing app.

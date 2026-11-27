@@ -1,12 +1,20 @@
 {
-  "name": "naveen-airtech-billing",
+  "name": "naveen-airtech",
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview"
+    "dev": "npm run dev -w @naveen/billing",
+    "dev:quotations": "npm run dev -w @naveen/quotations",
+    "build": "npm run build -w @naveen/billing",
+    "build:billing": "npm run build -w @naveen/billing",
+    "build:quotations": "npm run build -w @naveen/quotations",
+    "build:all": "npm run build:billing && npm run build:quotations",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",

@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "quotations",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev:quotations"],
+      "port": 5174
     }
   ]
 }

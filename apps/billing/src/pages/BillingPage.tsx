@@ -1,0 +1,1338 @@
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
+import type {
+  Company,
+  Invoice,
+  InvoiceItem,
+  InvoiceMeta,
+  Product,
+  Seller,
+  TaxMode,
+} from '@naveen/shared/types'
+import { calcInvoice, taxModeForBuyer } from '@naveen/shared/gst'
+import { money, plain, round4, todayDotted } from '@naveen/shared/format'
+import { downloadBlob, invoiceFileName, invoiceToPdfBlob, sharePdf } from '@naveen/shared/pdf'
+import { newId, saveCompany, saveInvoice, saveProduct } from '@naveen/shared/store'
+import { isDuplicateNo, lastInvoiceOfYear, nextInvoiceNo } from '@naveen/shared/invoiceNo'
+import ProductForm from '../components/ProductForm'
+import InvoiceDocument from '../components/InvoiceDocument'
+import CompanyForm from '../components/CompanyForm'
+import { Button, Card, CardHead, Field, Input, Modal, Pill, Select } from '@naveen/shared/ui'
+
+const emptyMeta = (invoiceNo = ''): InvoiceMeta => ({
+  invoiceNo,
+  dated: todayDotted(),
+  modeTerms: '100% Against Service',
+  customerPoNo: '',
+  despatchThrough: 'By Direct',
+  destination: '',
+  termsOfDelivery: 'Paid',
+})
+
+const toItem = (p: Product): InvoiceItem => ({
+  lineId: newId('l'),
+  productId: p.id,
+  description: p.name,
+  hsn: p.hsn,
+  qty: 1,
+  unit: p.unit,
+  rate: p.rate,
+  per: p.per,
+  gstRate: p.gstRate,
+  kind: p.kind,
+})
+
+export default function BillingPage({
+  products,
+  companies,
+  invoices,
+  seller,
+  draft,
+  mode,
+  onCompaniesChanged,
+  onProductsChanged,
+  onSaved,
+  onPrint,
+}: {
+  products: Product[]
+  companies: Company[]
+  invoices: Invoice[]
+  seller: Seller
+  draft: Invoice | null
+  mode: 'new' | 'edit' | 'repeat'
+  onCompaniesChanged: () => void
+  onProductsChanged: () => void
+  onSaved: (inv: Invoice) => void
+  onPrint: (payload: {
+    meta: InvoiceMeta
+    buyer: Company | null
+    items: InvoiceItem[]
+    taxMode: TaxMode
+    showSignature: boolean
+  }) => void
+}) {
+  // A new or repeated bill opens with the next number already filled in; an
+  // existing one keeps whatever it was saved with.
+  const suggestedNo = useState(() => nextInvoiceNo(invoices))[0]
+  const previousBill = useState(() => lastInvoiceOfYear(invoices))[0]
+  const [meta, setMeta] = useState<InvoiceMeta>(() =>
+    mode === 'edit' && draft
+      ? draft.meta
+      : { ...(draft?.meta ?? emptyMeta()), invoiceNo: draft?.meta.invoiceNo || suggestedNo },
+  )
+  const [buyerId, setBuyerId] = useState<string>(draft?.buyer.id ?? '')
+  const [items, setItems] = useState<InvoiceItem[]>(draft?.items ?? [])
+  const [override, setOverride] = useState<TaxMode | null>(
+    draft && !draft.taxModeAuto ? draft.taxMode : null,
+  )
+  const [invoiceId] = useState<string>(draft?.id ?? newId('inv'))
+  const [search, setSearch] = useState('')
+  const [addCompany, setAddCompany] = useState(false)
+  const [editCompany, setEditCompany] = useState(false)
+  const [preview, setPreview] = useState(false)
+  const [addProduct, setAddProduct] = useState(false)
+  const [showSignature, setShowSignature] = useState(draft?.showSignature ?? true)
+  const [flash, setFlash] = useState<{ tone: 'ok' | 'bad'; text: string } | null>(null)
+  /*
+    What the counter just tapped. On a phone the bill lines are far below the
+    catalogue, so tapping a product gave no sign that anything had happened
+    and the same part went on twice. This drives both the running count on
+    the card and the note at the foot of the screen.
+  */
+  const [justAdded, setJustAdded] = useState<{ name: string; n: number } | null>(null)
+  const addedTimer = useRef<number | undefined>(undefined)
+
+  const buyer = useMemo(
+    () => companies.find((c) => c.id === buyerId) ?? draft?.buyer ?? null,
+    [companies, buyerId, draft],
+  )
+  const autoMode = taxModeForBuyer(buyer, seller.state)
+  const taxMode: TaxMode = override ?? autoMode
+  const calc = useMemo(() => calcInvoice(items, taxMode), [items, taxMode])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    const live = products.filter((p) => p.active)
+    if (!q) return live
+    return live.filter((p) => p.name.toLowerCase().includes(q) || p.hsn.toLowerCase().includes(q))
+  }, [products, search])
+
+  const setMetaField = (k: keyof InvoiceMeta, v: string) => setMeta((m) => ({ ...m, [k]: v }))
+
+  const patchItem = (lineId: string, patch: Partial<InvoiceItem>) =>
+    setItems((list) => list.map((i) => (i.lineId === lineId ? { ...i, ...patch } : i)))
+
+  /**
+   * Bargaining on the Sub Total / Total line.
+   *
+   * The lines are snapshotted when the cell is focused and every keystroke
+   * scales from that snapshot, so typing "20000" one digit at a time lands on
+   * the right figure instead of compounding "2" then "20" then "200".
+   */
+  const scaleBase = useRef<InvoiceItem[] | null>(null)
+
+  const beginTotalEdit = () => {
+    scaleBase.current = items
+  }
+
+  const setTotal = (target: number, which: 'sub' | 'grand') => {
+    const base = scaleBase.current ?? items
+    const baseCalc = calcInvoice(base, taxMode)
+    const from = which === 'sub' ? baseCalc.subTotal : baseCalc.rawTotal
+    if (target <= 0 || from <= 0) return
+    const factor = target / from
+    if (!Number.isFinite(factor) || factor <= 0) return
+    setItems(base.map((i) => ({ ...i, rate: round4(i.rate * factor) })))
+  }
+
+  const addItem = (p: Product) => {
+    const existing = items.find((i) => i.productId === p.id && i.kind === 'goods')
+    setItems((list) => {
+      const match = list.find((i) => i.productId === p.id && i.kind === 'goods')
+      if (match) {
+        return list.map((i) => (i.lineId === match.lineId ? { ...i, qty: i.qty + 1 } : i))
+      }
+      return [...list, toItem(p)]
+    })
+    setFlash(null)
+
+    const n = existing ? existing.qty + 1 : onBill.get(p.id) ? (onBill.get(p.id) ?? 0) + 1 : 1
+    setJustAdded({ name: p.name, n })
+    window.clearTimeout(addedTimer.current)
+    addedTimer.current = window.setTimeout(() => setJustAdded(null), 2400)
+  }
+
+  /*
+    How many of each catalogue product are on the bill. Goods count by
+    quantity, since tapping the same part twice bumps one line; a service is
+    a line of its own each time.
+  */
+  const onBill = useMemo(() => {
+    const m = new Map<string, number>()
+    for (const i of items) {
+      if (!i.productId) continue
+      m.set(i.productId, (m.get(i.productId) ?? 0) + (i.kind === 'goods' ? i.qty : 1))
+    }
+    return m
+  }, [items])
+
+  const say = (tone: 'ok' | 'bad', text: string) => {
+    setFlash({ tone, text })
+    window.setTimeout(() => setFlash(null), 3200)
+  }
+
+  const validate = (): string | null => {
+    if (!meta.invoiceNo.trim()) return 'Enter the invoice number before saving.'
+    if (!buyer) return 'Select the company this bill is for.'
+    if (items.length === 0) return 'Add at least one product or service.'
+    return null
+  }
+
+  const buildInvoice = (): Invoice => ({
+    id: invoiceId,
+    meta,
+    buyer: buyer as Company,
+    items,
+    taxMode,
+    taxModeAuto: override === null,
+    showSignature,
+    createdAt: draft?.createdAt ?? new Date().toISOString(),
+    grandTotal: calc.grandTotal,
+  })
+
+  /**
+   * Records the bill, and returns the reason if it could not — null when it
+   * is safely in Invoices.
+   *
+   * Every way a bill leaves this screen goes through here first: Save, Save
+   * & Print, Save PDF and WhatsApp. Two of those used to go straight to the
+   * customer without it. That is worse than a missing row in a list — the
+   * invoice number on the sheet the customer is holding was still free as
+   * far as the website knew, so the next bill would be offered the same one.
+   *
+   * Saving twice is harmless. The id is fixed when the screen opens, so a
+   * second save replaces the same row rather than adding another.
+   */
+  const save = async (thenPrint: boolean): Promise<string | null> => {
+    const err = validate()
+    if (err) {
+      say('bad', err)
+      return err
+    }
+    const inv = buildInvoice()
+    await saveInvoice(inv)
+    onSaved(inv)
+    say('ok', `Invoice ${inv.meta.invoiceNo} saved.`)
+    if (thenPrint) onPrint({ meta, buyer, items, taxMode, showSignature })
+    return null
+  }
+
+  const openPreview = () => {
+    if (items.length === 0) return say('bad', 'Add at least one product or service first.')
+    if (!buyer) return say('bad', 'Select the company this bill is for.')
+    setPreview(true)
+  }
+
+  const clearAll = () => {
+    setMeta(emptyMeta(nextInvoiceNo(invoices)))
+    setBuyerId('')
+    setItems([])
+    setOverride(null)
+  }
+
+  return (
+    <div className="anim-rise">
+      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="font-display text-[30px] font-semibold leading-none tracking-tight text-ink">
+            {mode === 'edit' ? 'Edit Bill' : mode === 'repeat' ? 'Repeat Bill' : 'New Bill'}
+          </h1>
+          <p className="mt-1.5 text-[13px] text-muted">
+            {mode === 'repeat'
+              ? 'Copied from an earlier bill — give it a new invoice number, adjust what changed, and save.'
+              : 'Pick the buyer, tap the parts, then settle the price in the preview.'}
+          </p>
+        </div>
+        <div className="flex items-center gap-2.5">
+          <Button variant="ghost" size="sm" onClick={clearAll}>
+            Clear
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => save(false)}>
+            Save
+          </Button>
+          <Button size="sm" onClick={openPreview}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+              <circle cx="12" cy="12" r="2.6" stroke="currentColor" strokeWidth="1.8" />
+            </svg>
+            Preview &amp; Print
+          </Button>
+        </div>
+      </header>
+
+      {flash ? (
+        <div
+          className={`anim-rise mb-5 rounded-xl2 px-4 py-3 text-[13.5px] font-semibold ${
+            flash.tone === 'ok' ? 'bg-sage/12 text-sage' : 'bg-clay/10 text-clay'
+          }`}
+        >
+          {flash.text}
+        </div>
+      ) : null}
+
+      <div className="flex items-start gap-6">
+        <div className="min-w-0 flex-1 space-y-5">
+          {/* ------------------------------------------------ buyer + meta */}
+          <Card>
+            <CardHead
+              title="Bill details"
+              subtitle="Everything on the right of the bill is typed by hand, exactly as you do today."
+            />
+            <div className="grid grid-cols-1 gap-5 p-6 lg:grid-cols-2">
+              <div className="space-y-4">
+                <Field label="Bill to (Consignee)">
+                  <div className="flex gap-2">
+                    <Select
+                      value={buyerId}
+                      onChange={(e) => {
+                        setBuyerId(e.target.value)
+                        setOverride(null)
+                      }}
+                    >
+                      <option value="">Select a company…</option>
+                      {companies
+                        .filter((c) => c.active)
+                        .map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name} — {c.state}
+                          </option>
+                        ))}
+                    </Select>
+                    <Button variant="outline" size="md" onClick={() => setAddCompany(true)}>
+                      + New
+                    </Button>
+                  </div>
+                </Field>
+
+                {buyer ? (
+                  <div className="anim-fade relative rounded-xl2 border border-line bg-bone px-4 py-3.5 text-[12.5px] leading-relaxed text-ink-2">
+                    <button
+                      onClick={() => setEditCompany(true)}
+                      className="absolute right-3 top-3 inline-flex items-center gap-1.5 rounded-full border border-line-2 bg-card px-3 py-1
+                        text-[11.5px] font-bold text-ink-2 transition-all duration-200
+                        hover:-translate-y-0.5 hover:border-copper hover:text-copper
+                        hover:shadow-[0_8px_18px_-10px_rgba(180,113,58,0.9)]"
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                        <path
+                          d="M4 20h4L19 9l-4-4L4 16v4zM14.5 5.5l4 4"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      Edit
+                    </button>
+                    <div className="pr-16 font-bold text-ink">{buyer.name}</div>
+                    {buyer.addressLines.map((l, i) => (
+                      <div key={i}>{l}</div>
+                    ))}
+                    <div className="mt-1 font-mono text-[12px]">GST: {buyer.gstin}</div>
+                  </div>
+                ) : null}
+
+                <div className="rounded-xl2 border border-line bg-bone px-4 py-3">
+                  <div className="flex items-center gap-2.5">
+                    {taxMode === 'intra' ? (
+                      <Pill tone="sage">CGST + SGST</Pill>
+                    ) : (
+                      <Pill tone="copper">IGST</Pill>
+                    )}
+                    <button
+                      onClick={() =>
+                        setOverride(taxMode === 'intra' ? 'inter' : override ? null : 'intra')
+                      }
+                      className="ml-auto shrink-0 rounded-full border border-line-2 px-3 py-1.5 text-[11.5px] font-bold text-ink-2 transition-colors hover:border-copper hover:text-copper"
+                    >
+                      {override ? 'Back to auto' : `Force ${taxMode === 'intra' ? 'IGST' : 'CGST+SGST'}`}
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[12.5px] leading-snug text-ink-2">
+                    {buyer
+                      ? taxMode === 'intra'
+                        ? `${buyer.state} — tax splits into Central and State.`
+                        : `${buyer.state} — inter-state, so one IGST line.`
+                      : 'Select a company to set the tax type.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3.5">
+                <Field label="Invoice No.">
+                  <Input
+                    value={meta.invoiceNo}
+                    onChange={(e) => setMetaField('invoiceNo', e.target.value)}
+                    placeholder="145/2026-2027"
+                  />
+                  {isDuplicateNo(invoices, meta.invoiceNo, invoiceId) ? (
+                    <span className="mt-1 block text-[11.5px] font-semibold text-clay">
+                      Already used on another bill.
+                    </span>
+                  ) : previousBill ? (
+                    <span className="mt-1 block text-[11.5px] text-muted">
+                      Previous: <b className="font-semibold text-ink-2">{previousBill.meta.invoiceNo}</b>
+                      {' · '}
+                      {previousBill.buyer.name}
+                    </span>
+                  ) : (
+                    <span className="mt-1 block text-[11.5px] text-muted">First bill of the year.</span>
+                  )}
+                </Field>
+                <Field label="Dated">
+                  <Input
+                    value={meta.dated}
+                    onChange={(e) => setMetaField('dated', e.target.value)}
+                    placeholder="02.09.2026"
+                  />
+                </Field>
+                <Field label="Mode / Terms of Payment" className="col-span-2">
+                  <Input
+                    value={meta.modeTerms}
+                    onChange={(e) => setMetaField('modeTerms', e.target.value)}
+                    placeholder="100% Against Service"
+                  />
+                </Field>
+                <Field label="Customer PO No." className="col-span-2">
+                  <Input
+                    value={meta.customerPoNo}
+                    onChange={(e) => setMetaField('customerPoNo', e.target.value)}
+                    placeholder="PT/26-27/213, dt 31.08.2026"
+                  />
+                </Field>
+                <Field label="Despatch Through">
+                  <Input
+                    value={meta.despatchThrough}
+                    onChange={(e) => setMetaField('despatchThrough', e.target.value)}
+                    placeholder="By Direct"
+                  />
+                </Field>
+                <Field label="Destination">
+                  <Input
+                    value={meta.destination}
+                    onChange={(e) => setMetaField('destination', e.target.value)}
+                    placeholder="Chennai"
+                  />
+                </Field>
+                <Field label="Terms of Delivery" className="col-span-2">
+                  <Input
+                    value={meta.termsOfDelivery}
+                    onChange={(e) => setMetaField('termsOfDelivery', e.target.value)}
+                    placeholder="Paid"
+                  />
+                </Field>
+              </div>
+            </div>
+          </Card>
+
+          {/* ---------------------------------------------- product picker */}
+          <Card>
+            <CardHead
+              title="Catalogue"
+              subtitle={`${filtered.length} item${filtered.length === 1 ? '' : 's'} — tap to add; the listed rate is only a starting figure`}
+              right={
+                <div className="flex w-full items-center gap-2 sm:w-auto">
+                  <div className="min-w-0 flex-1 sm:w-56 sm:flex-none">
+                    <Input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="Search name or HSN…"
+                      className="h-10 py-2"
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-10 shrink-0"
+                    onClick={() => setAddProduct(true)}
+                  >
+                    + New product
+                  </Button>
+                </div>
+              }
+            />
+            <div className="scroll-thin max-h-[52vh] overflow-y-auto p-3 sm:max-h-[290px] sm:p-4">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                {filtered.map((p) => {
+                  const added = onBill.get(p.id) ?? 0
+                  return (
+                  <button
+                    key={p.id}
+                    onClick={() => addItem(p)}
+                    className={`group rounded-xl2 border px-3.5 py-3 text-left
+                      transition-all duration-200 ease-out
+                      hover:-translate-y-0.5 hover:scale-[1.025] hover:border-copper
+                      hover:shadow-[0_14px_28px_-18px_rgba(180,113,58,0.9)] active:scale-[0.99] ${
+                        added > 0 ? 'border-copper/70 bg-copper/[0.06]' : 'border-line bg-card'
+                      }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="line-clamp-2 text-[13px] font-bold leading-snug text-ink">
+                        {p.name}
+                      </span>
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {added > 0 ? (
+                          <span
+                            key={added}
+                            className="anim-pop rounded-full bg-copper px-2 py-0.5 text-[10.5px] font-bold text-bone"
+                          >
+                            Added {added}
+                          </span>
+                        ) : null}
+                        <span className="rounded-full bg-bone-2 px-2 py-0.5 font-mono text-[10.5px] text-ink-2">
+                          {p.hsn}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between">
+                      <span className="text-[13px] font-bold text-copper">{money(p.rate)}</span>
+                      <span className="text-[11px] text-muted">
+                        {p.kind === 'service' ? 'Service' : `per ${p.per}`} · {p.gstRate}%
+                      </span>
+                    </div>
+                  </button>
+                  )
+                })}
+                {filtered.length === 0 ? (
+                  <p className="col-span-full py-8 text-center text-[13px] text-muted">
+                    Nothing matches “{search}”.
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </Card>
+
+          {/* ------------------------------------------------------- lines */}
+          <Card>
+            <CardHead
+              title="Items on this bill"
+              subtitle={`${items.length} line${items.length === 1 ? '' : 's'} — prices are settled in the preview`}
+              right={
+                items.length > 0 ? (
+                  <Button variant="outline" size="sm" onClick={openPreview}>
+                    Open preview
+                  </Button>
+                ) : undefined
+              }
+            />
+            {items.length === 0 ? (
+              <p className="px-6 py-12 text-center text-[13.5px] text-muted">
+                No items yet — tap something from the catalogue above.
+              </p>
+            ) : (
+              <>
+                {/* phone: a card per line, so nothing scrolls sideways */}
+                <div className="divide-y divide-line/70 lg:hidden">
+                  {items.map((it, idx) => {
+                    const line = calc.lines[idx]
+                    const isService = it.kind === 'service'
+                    const cell =
+                      'w-full rounded-lg border border-line bg-card px-2 py-1.5 text-[13px] tabular-nums text-ink outline-none transition-colors focus:border-copper'
+                    return (
+                      <div key={it.lineId} className="px-4 py-3.5">
+                        <div className="flex items-start gap-2">
+                          <span className="mt-2.5 w-4 shrink-0 text-[12px] font-bold text-muted">
+                            {idx + 1}
+                          </span>
+                          <input
+                            value={it.description}
+                            onChange={(e) => patchItem(it.lineId, { description: e.target.value })}
+                            className="min-w-0 flex-1 rounded-lg bg-transparent px-1 py-1.5 text-[13.5px] font-bold leading-snug text-ink outline-none transition-colors focus:bg-bone-2"
+                          />
+                          <button
+                            onClick={() => setItems((l) => l.filter((x) => x.lineId !== it.lineId))}
+                            aria-label="Remove line"
+                            className="mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-full text-muted transition-colors active:bg-clay/12 active:text-clay"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                              <path
+                                d="M4 4l8 8M12 4l-8 8"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+
+                        <div className="mt-2 grid grid-cols-3 gap-2 pl-6">
+                          <label className="block">
+                            <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                              HSN
+                            </span>
+                            <input
+                              value={it.hsn}
+                              onChange={(e) => patchItem(it.lineId, { hsn: e.target.value })}
+                              className={`${cell} font-mono text-[12px]`}
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                              Qty
+                            </span>
+                            {isService ? (
+                              <div className={`${cell} text-muted`}>—</div>
+                            ) : (
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                min={0}
+                                step="any"
+                                value={it.qty}
+                                onChange={(e) => patchItem(it.lineId, { qty: Number(e.target.value) })}
+                                className={cell}
+                              />
+                            )}
+                          </label>
+                          <label className="block">
+                            <span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+                              {isService ? 'Amount' : 'Rate'}
+                            </span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              step="any"
+                              value={it.rate}
+                              onChange={(e) => patchItem(it.lineId, { rate: Number(e.target.value) })}
+                              className={cell}
+                            />
+                          </label>
+                        </div>
+
+                        <div className="mt-2.5 flex items-center justify-between pl-6 text-[12.5px]">
+                          <span className="text-muted">
+                            GST {plain(line?.tax ?? 0)} · {it.gstRate}%
+                          </span>
+                          <span className="font-bold tabular-nums text-ink">
+                            {plain(line?.taxable ?? 0)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div className="hidden overflow-x-auto lg:block">
+                <table className="w-full min-w-[720px] text-[13px]">
+                  <thead>
+                    <tr className="border-b border-line text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">
+                      <th className="w-10 py-2.5 pl-6 text-left">#</th>
+                      <th className="py-2.5 text-left">Description</th>
+                      <th className="w-24 py-2.5 text-left">HSN</th>
+                      <th className="w-24 py-2.5 text-right">Qty</th>
+                      <th className="w-28 py-2.5 text-right">Rate</th>
+                      <th className="w-28 py-2.5 text-right">Taxable</th>
+                      <th className="w-28 py-2.5 text-right">GST</th>
+                      <th className="w-12 py-2.5 pr-5" />
+                    </tr>
+                  </thead>
+                  <tbody className="stagger">
+                    {items.map((it, idx) => {
+                      const line = calc.lines[idx]
+                      const isService = it.kind === 'service'
+                      return (
+                        <tr
+                          key={it.lineId}
+                          className="group border-b border-line/70 transition-colors last:border-0 hover:bg-bone/60"
+                        >
+                          <td className="py-2 pl-6 text-muted">{idx + 1}</td>
+                          <td className="py-2 pr-3">
+                            <input
+                              value={it.description}
+                              onChange={(e) => patchItem(it.lineId, { description: e.target.value })}
+                              className="w-full rounded-lg bg-transparent px-1.5 py-1 font-semibold text-ink outline-none transition-colors focus:bg-bone-2"
+                            />
+                          </td>
+                          <td className="py-2 pr-3">
+                            <input
+                              value={it.hsn}
+                              onChange={(e) => patchItem(it.lineId, { hsn: e.target.value })}
+                              className="w-full rounded-lg bg-transparent px-1.5 py-1 font-mono text-[12px] text-ink-2 outline-none transition-colors focus:bg-bone-2"
+                            />
+                          </td>
+                          <td className="py-2 text-right">
+                            {isService ? (
+                              <span className="pr-1.5 text-muted">—</span>
+                            ) : (
+                              <input
+                                type="number"
+                                min={0}
+                                step="any"
+                                value={it.qty}
+                                onChange={(e) => patchItem(it.lineId, { qty: Number(e.target.value) })}
+                                className="w-20 rounded-lg bg-transparent px-1.5 py-1 text-right tabular-nums outline-none transition-colors focus:bg-bone-2"
+                              />
+                            )}
+                          </td>
+                          <td className="py-2 text-right">
+                            <input
+                              type="number"
+                              min={0}
+                              step="any"
+                              value={it.rate}
+                              onChange={(e) => patchItem(it.lineId, { rate: Number(e.target.value) })}
+                              className="w-24 rounded-lg bg-transparent px-1.5 py-1 text-right tabular-nums outline-none transition-colors focus:bg-bone-2"
+                            />
+                          </td>
+                          <td className="py-2 pr-1.5 text-right font-bold tabular-nums text-ink">
+                            {plain(line?.taxable ?? 0)}
+                          </td>
+                          <td className="py-2 pr-1.5 text-right tabular-nums text-ink-2">
+                            {plain(line?.tax ?? 0)}
+                            <span className="ml-1 text-[10.5px] text-muted">{it.gstRate}%</span>
+                          </td>
+                          <td className="py-2 pr-5 text-right">
+                            <button
+                              onClick={() => setItems((l) => l.filter((x) => x.lineId !== it.lineId))}
+                              aria-label="Remove line"
+                              className="grid h-7 w-7 place-items-center rounded-full text-muted opacity-0 transition-all
+                                group-hover:opacity-100 hover:bg-clay/12 hover:text-clay focus:opacity-100"
+                            >
+                              <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
+                                <path
+                                  d="M4 4l8 8M12 4l-8 8"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                />
+                              </svg>
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                </div>
+              </>
+            )}
+          </Card>
+
+          {/* ----------------------------------------------- tax breakdown */}
+          {items.length > 0 ? (
+            <div className="grid gap-5 lg:grid-cols-[1.25fr_1fr]">
+              <Card>
+                <CardHead
+                  title="GST, separated"
+                  subtitle="Grouped the way the bill prints it — one row per HSN/SAC."
+                />
+                <HsnTable calc={calc} />
+              </Card>
+
+              <Card className="overflow-hidden">
+                <div className="space-y-2 px-6 py-5 text-[13.5px]">
+                  <Row label="Sub Total" value={plain(calc.subTotal)} />
+                  {taxMode === 'intra' ? (
+                    <>
+                      <Row label="CGST" value={plain(calc.cgst)} />
+                      <Row label="SGST" value={plain(calc.sgst)} />
+                    </>
+                  ) : (
+                    <Row label="IGST" value={plain(calc.igst)} />
+                  )}
+                  <Row label="Rounded Off" value={plain(calc.roundOff)} />
+                </div>
+                <div className="flex items-end justify-between bg-espresso px-6 py-5 text-bone">
+                  <div>
+                    <div className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-bone/45">
+                      Total payable
+                    </div>
+                    <div className="mt-0.5 text-[11.5px] text-bone/50">
+                      incl. {plain(calc.totalTax)} tax
+                    </div>
+                  </div>
+                  <div className="font-display text-[28px] font-semibold leading-none text-copper-2">
+                    {money(calc.grandTotal)}
+                  </div>
+                </div>
+              </Card>
+            </div>
+          ) : null}
+        </div>
+
+        {/* --------------------------------------------- mini side preview */}
+        <aside className="sticky top-8 hidden w-[404px] shrink-0 2xl:block">
+          <Card className="overflow-hidden">
+            <CardHead
+              title="Print preview"
+              subtitle="Exactly what comes out of the printer"
+              right={
+                <Button size="sm" variant="dark" onClick={openPreview}>
+                  Open
+                </Button>
+              }
+            />
+            <button
+              onClick={openPreview}
+              className="block w-full cursor-zoom-in bg-bone-2 p-4 text-left transition-colors hover:bg-line/70"
+            >
+              <div className="h-[560px] overflow-hidden rounded-lg">
+                <div style={{ transform: 'scale(0.5)', transformOrigin: 'top left', width: '734px' }}>
+                  <InvoiceDocument
+                    meta={meta}
+                    seller={seller}
+                    buyer={buyer}
+                    items={items}
+                    calc={calc}
+                    signature={showSignature ? seller.signature ?? null : null}
+                    className="inv-screen"
+                  />
+                </div>
+              </div>
+            </button>
+          </Card>
+        </aside>
+      </div>
+
+      {/* ------------------------------------------------- preview overlay */}
+      {preview ? (
+        <PreviewOverlay
+          meta={meta}
+          seller={seller}
+          buyer={buyer}
+          items={items}
+          calc={calc}
+          taxMode={taxMode}
+          onPatchItem={patchItem}
+          signature={showSignature ? seller.signature ?? null : null}
+          hasSignature={Boolean(seller.signature)}
+          showSignature={showSignature}
+          onToggleSignature={() => setShowSignature((v) => !v)}
+          onBeginTotalEdit={beginTotalEdit}
+          onSetTotal={setTotal}
+          onClose={() => setPreview(false)}
+          onSave={() => save(false)}
+          onPrint={() => save(true)}
+        />
+      ) : null}
+
+      <Modal
+        open={addProduct}
+        onClose={() => setAddProduct(false)}
+        title="New product"
+        subtitle="Added to the catalogue and dropped straight onto this bill."
+      >
+        <ProductForm
+          onCancel={() => setAddProduct(false)}
+          onSave={async (p) => {
+            await saveProduct(p)
+            onProductsChanged()
+            addItem(p)
+            setAddProduct(false)
+            say('ok', `${p.name} added to the catalogue.`)
+          }}
+        />
+      </Modal>
+
+      <Modal
+        open={addCompany}
+        onClose={() => setAddCompany(false)}
+        title="Add a company"
+        subtitle="Saved to the list — pick it from the dropdown next time."
+      >
+        <CompanyForm
+          homeState={seller.state}
+          onCancel={() => setAddCompany(false)}
+          onSave={async (c) => {
+            await saveCompany(c)
+            onCompaniesChanged()
+            setBuyerId(c.id)
+            setOverride(null)
+            setAddCompany(false)
+          }}
+        />
+      </Modal>
+
+      <Modal
+        open={editCompany && !!buyer}
+        onClose={() => setEditCompany(false)}
+        title="Edit company"
+        subtitle="Changes are saved to the company list and show on this bill straight away."
+      >
+        {buyer ? (
+          <CompanyForm
+            initial={buyer}
+            homeState={seller.state}
+            onCancel={() => setEditCompany(false)}
+            onSave={async (c) => {
+              await saveCompany(c)
+              onCompaniesChanged()
+              setBuyerId(c.id)
+              setEditCompany(false)
+              say('ok', `${c.name} updated.`)
+            }}
+          />
+        ) : null}
+      </Modal>
+
+      {/*
+        Confirmation of the last tap, pinned to the foot of the screen where
+        a thumb is already looking. Above the mobile total bar, and out of
+        the way of pointer events.
+      */}
+      {justAdded ? (
+        <div className="anim-rise pointer-events-none fixed inset-x-0 bottom-24 z-30 flex justify-center px-4 lg:bottom-8">
+          <div className="flex max-w-full items-center gap-2 rounded-full bg-espresso px-4 py-2.5 text-[13px] font-semibold text-bone shadow-[0_18px_40px_-14px_rgba(30,21,16,0.7)]">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" className="shrink-0">
+              <path
+                d="M5 12.5l4.5 4.5L19 7.5"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span className="truncate">
+              Added {justAdded.name}
+              {justAdded.n > 1 ? ` — now ${justAdded.n} on the bill` : null}
+            </span>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ preview */
+
+function PreviewOverlay({
+  meta,
+  seller,
+  buyer,
+  items,
+  calc,
+  taxMode,
+  onPatchItem,
+  signature,
+  hasSignature,
+  showSignature,
+  onToggleSignature,
+  onBeginTotalEdit,
+  onSetTotal,
+  onClose,
+  onSave,
+  onPrint,
+}: {
+  meta: InvoiceMeta
+  seller: Seller
+  buyer: Company | null
+  items: InvoiceItem[]
+  calc: ReturnType<typeof calcInvoice>
+  taxMode: TaxMode
+  onPatchItem: (lineId: string, patch: Partial<InvoiceItem>) => void
+  signature: string | null
+  hasSignature: boolean
+  showSignature: boolean
+  onToggleSignature: () => void
+  onBeginTotalEdit: () => void
+  onSetTotal: (target: number, which: 'sub' | 'grand') => void
+  onClose: () => void
+  /** records the bill; resolves to null, or to why it could not */
+  onSave: () => Promise<string | null>
+  onPrint: () => Promise<string | null>
+}) {
+  const pdfRef = useRef<HTMLDivElement>(null)
+
+  // Shrink the 734px-wide bill to whatever width the screen actually has.
+  const fitRef = useRef<HTMLDivElement>(null)
+  const [fit, setFit] = useState(1)
+  useEffect(() => {
+    const measure = () => {
+      const el = fitRef.current
+      if (!el) return
+      const padding = window.innerWidth < 640 ? 24 : 48
+      setFit(Math.min(1, (el.clientWidth - padding) / 734))
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    window.addEventListener('orientationchange', measure)
+    return () => {
+      window.removeEventListener('resize', measure)
+      window.removeEventListener('orientationchange', measure)
+    }
+  }, [])
+  const [busy, setBusy] = useState<'pdf' | 'share' | null>(null)
+  const [toast, setToast] = useState('')
+
+  const fileName = invoiceFileName(meta.invoiceNo || 'draft', buyer?.name ?? '')
+
+  const buildPdf = async () => {
+    const node = pdfRef.current
+    if (!node) throw new Error('nothing to render')
+    return invoiceToPdfBlob(node)
+  }
+
+  const flash = (t: string) => {
+    setToast(t)
+    window.setTimeout(() => setToast(''), 4000)
+  }
+
+  /*
+    The bill is recorded before it is allowed to leave, and nothing leaves if
+    it cannot be. The page behind this overlay is where save() normally
+    reports itself, and none of that is visible from here, so whatever it
+    says comes out in this overlay's own toast instead.
+  */
+  const commit = async (): Promise<boolean> => {
+    const err = await onSave()
+    if (err) flash(err)
+    return !err
+  }
+
+  const savePdf = async () => {
+    setBusy('pdf')
+    try {
+      if (!(await commit())) return
+      downloadBlob(await buildPdf(), fileName)
+      flash(`Saved ${fileName} — the bill is in Invoices.`)
+    } catch {
+      flash('Could not build the PDF. Use Save & Print and choose “Save as PDF”.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const shareOnWhatsapp = async () => {
+    setBusy('share')
+    try {
+      if (!(await commit())) return
+      const message = [
+        `Tax Invoice ${meta.invoiceNo || ''}`.trim(),
+        `from ${seller.name}`,
+        `Total ${money(calc.grandTotal)}`,
+      ].join(' — ')
+      const how = await sharePdf(await buildPdf(), fileName, message, buyer?.phone)
+      if (how === 'downloaded-and-opened') {
+        flash(`${fileName} downloaded — attach it in the WhatsApp tab that just opened.`)
+      } else if (how === 'shared') {
+        flash('Shared, and the bill is in Invoices.')
+      }
+    } catch {
+      flash('Could not build the PDF to share.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return createPortal(
+    <div className="anim-fade fixed inset-0 z-50 flex flex-col bg-bone">
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-card px-4 py-3 sm:px-6 sm:py-3.5">
+        <button
+          onClick={onClose}
+          className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[13px] font-bold text-ink-2 transition-colors hover:bg-bone-2 hover:text-ink"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M15 5l-7 7 7 7"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Back to bill
+        </button>
+
+        <div className="min-w-0 flex-1">
+          <h2 className="font-display text-[19px] font-semibold leading-tight text-ink">
+            Settle the price
+          </h2>
+          <p className="hidden truncate text-[12.5px] text-muted sm:block">
+            Click any quantity, rate or amount on the bill and type the agreed figure — GST and the
+            total follow it.
+          </p>
+        </div>
+
+        {/* wraps onto its own line on a phone rather than squeezing the
+            labels out of their buttons */}
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <Button variant="ghost" size="sm" onClick={savePdf} disabled={busy !== null}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 3v11m0 0l-4-4m4 4l4-4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            {busy === 'pdf' ? 'Saving…' : 'Save PDF'}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={shareOnWhatsapp} disabled={busy !== null}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M20.5 11.5a8.5 8.5 0 01-12.6 7.4L3.5 20.5l1.7-4.3A8.5 8.5 0 1120.5 11.5z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M8.8 8.4c.3-.7.6-.7.9-.700000001.2 0 .5 0 .7.4l.6 1.3c.1.3 0 .5-.1.7l-.4.5c-.1.2-.2.4 0 .7.5.8 1.3 1.5 2.2 1.9.3.1.5.1.7-.1l.5-.5c.2-.2.4-.2.6-.1l1.3.7c.3.2.4.4.4.6 0 .4-.2.9-.9 1.2-.6.3-1.4.3-2.3 0a8 8 0 01-4.4-4.1c-.4-.9-.4-1.8-.1-2.4z"
+                fill="currentColor"
+              />
+            </svg>
+            {busy === 'share' ? 'Preparing…' : 'WhatsApp'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy !== null}
+            onClick={async () => flash((await onSave()) ?? 'Saved to Invoices.')}
+          >
+            Save
+          </Button>
+          <Button size="sm" disabled={busy !== null} onClick={async () => {
+            const err = await onPrint()
+            if (err) flash(err)
+          }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M6 9V3h12v6M6 18H4v-6h16v6h-2M8 14h8v7H8v-7z"
+                stroke="currentColor"
+                strokeWidth="1.9"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            Save &amp; Print
+          </Button>
+        </div>
+      </header>
+
+      <div className="scroll-thin flex min-h-0 flex-1 flex-col overflow-y-auto xl:flex-row xl:overflow-hidden">
+        <div
+          ref={fitRef}
+          className="scroll-thin bg-bone-2/60 px-3 py-4 sm:px-6 sm:py-8 xl:min-h-0 xl:flex-1 xl:overflow-y-auto"
+        >
+          {/*
+            The bill is a fixed 194mm wide. On a phone it is shrunk to fit with
+            `zoom`, which reflows rather than just painting smaller, so the cells
+            stay tappable and the page height stays honest.
+          */}
+          <div className="mx-auto w-[734px]" style={{ zoom: fit }}>
+            <InvoiceDocument
+              meta={meta}
+              seller={seller}
+              buyer={buyer}
+              items={items}
+              calc={calc}
+              editable
+              signature={signature}
+              onPatchItem={onPatchItem}
+              onBeginTotalEdit={onBeginTotalEdit}
+              onSetTotal={onSetTotal}
+              className="inv-screen anim-rise"
+            />
+          </div>
+        </div>
+
+        <aside className="scroll-thin w-full shrink-0 border-t border-line bg-card px-5 py-6 xl:w-[350px] xl:min-h-0 xl:overflow-y-auto xl:border-l xl:border-t-0">
+          <div className="mb-5 flex items-center gap-2.5">
+            {taxMode === 'intra' ? (
+              <Pill tone="sage">CGST + SGST</Pill>
+            ) : (
+              <Pill tone="copper">IGST</Pill>
+            )}
+            <span className="text-[12px] text-muted">{buyer?.state}</span>
+          </div>
+
+          <div className="space-y-2 text-[13.5px]">
+            <Row label="Sub Total" value={plain(calc.subTotal)} />
+            {taxMode === 'intra' ? (
+              <>
+                <Row label="CGST" value={plain(calc.cgst)} />
+                <Row label="SGST" value={plain(calc.sgst)} />
+              </>
+            ) : (
+              <Row label="IGST" value={plain(calc.igst)} />
+            )}
+            <Row label="Rounded Off" value={plain(calc.roundOff)} />
+          </div>
+
+          <div className="mt-5 rounded-[18px] bg-espresso px-5 py-5 text-bone">
+            <div className="text-[10.5px] font-bold uppercase tracking-[0.12em] text-bone/45">
+              Total payable
+            </div>
+            <div className="mt-1 font-display text-[30px] font-semibold leading-none text-copper-2">
+              {money(calc.grandTotal)}
+            </div>
+            <div className="mt-1.5 text-[11.5px] text-bone/50">
+              incl. {plain(calc.totalTax)} tax on {plain(calc.subTotal)}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <h3 className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.09em] text-muted">
+              GST, separated
+            </h3>
+            <div className="overflow-hidden rounded-xl2 border border-line">
+              <HsnTable calc={calc} compact />
+            </div>
+          </div>
+
+          {hasSignature ? (
+            <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-xl2 border border-line bg-bone px-4 py-3">
+              <input
+                type="checkbox"
+                checked={showSignature}
+                onChange={onToggleSignature}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#b4713a]"
+              />
+              <span className="text-[12.5px] leading-snug text-ink-2">
+                <b className="font-semibold text-ink">Print the signature</b>
+                <br />
+                Turn it off to leave the space blank and sign the sheet by hand.
+              </span>
+            </label>
+          ) : null}
+
+          <p className="mt-5 text-[12px] leading-relaxed text-muted">
+            Type over any quantity, rate or amount. Putting a figure on <b>Sub Total</b> or{' '}
+            <b>Total</b> spreads it back across the lines in proportion.
+          </p>
+          <p className="mt-2 text-[12px] leading-relaxed text-muted">
+            Changes affect this bill only — the catalogue rate stays as it is.
+          </p>
+        </aside>
+      </div>
+
+      {/* phone: the running total stays put while the bill scrolls */}
+      <div className="flex items-center justify-between gap-3 border-t border-line bg-card px-4 py-2.5 xl:hidden">
+        <div>
+          <div className="text-[9.5px] font-bold uppercase tracking-[0.12em] text-muted">
+            Total payable
+          </div>
+          <div className="font-display text-[20px] font-semibold leading-tight text-ink">
+            {money(calc.grandTotal)}
+          </div>
+        </div>
+        <Button size="sm" disabled={busy !== null} onClick={async () => {
+          const err = await onPrint()
+          if (err) flash(err)
+        }}>
+          Save &amp; Print
+        </Button>
+      </div>
+
+      {toast ? (
+        <div className="anim-rise pointer-events-none fixed bottom-6 left-1/2 z-10 -translate-x-1/2 rounded-full bg-espresso px-5 py-3 text-[13px] font-semibold text-bone shadow-[0_18px_40px_-14px_rgba(30,21,16,0.7)]">
+          {toast}
+        </div>
+      ) : null}
+
+      {/* Plain copy of the bill, off-screen, rendered to PNG for the PDF so the
+          exported file never shows the bargaining underlines.
+
+          Exactly as wide as the bill itself, which is the geometry the PDF
+          is traced from. */}
+      <div
+        ref={pdfRef}
+        aria-hidden
+        style={{
+          position: 'fixed',
+          left: '-10000px',
+          top: 0,
+          width: '186mm',
+          background: '#fff',
+          zIndex: -1,
+        }}
+      >
+        <InvoiceDocument
+          meta={meta}
+          seller={seller}
+          buyer={buyer}
+          items={items}
+          calc={calc}
+          signature={signature}
+        />
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
+/* ------------------------------------------------------------------- pieces */
+
+function HsnTable({
+  calc,
+  compact = false,
+}: {
+  calc: ReturnType<typeof calcInvoice>
+  compact?: boolean
+}) {
+  const intra = calc.taxMode === 'intra'
+  const pad = compact ? 'pl-3' : 'pl-6'
+  const padR = compact ? 'pr-3' : 'pr-6'
+
+  return (
+    <table className={`w-full ${compact ? 'text-[12px]' : 'text-[13px]'}`}>
+      <thead>
+        <tr className="border-b border-line text-[10.5px] font-bold uppercase tracking-[0.08em] text-muted">
+          <th className={`py-2.5 ${pad} text-left`}>HSN/SAC</th>
+          <th className="py-2.5 text-right">Taxable</th>
+          {intra ? (
+            <>
+              <th className="py-2.5 text-right">CGST</th>
+              <th className={`py-2.5 ${padR} text-right`}>SGST</th>
+            </>
+          ) : (
+            <th className={`py-2.5 ${padR} text-right`}>IGST</th>
+          )}
+        </tr>
+      </thead>
+      <tbody>
+        {calc.hsnRows.map((r) => (
+          <tr key={`${r.hsn}-${r.gstRate}`} className="border-b border-line/60">
+            <td className={`py-2 ${pad} font-mono text-[12px] text-ink`}>{r.hsn}</td>
+            <td className="py-2 text-right tabular-nums">{plain(r.taxable)}</td>
+            {intra ? (
+              <>
+                <td className="py-2 text-right tabular-nums">{plain(r.cgst)}</td>
+                <td className={`py-2 ${padR} text-right tabular-nums`}>{plain(r.sgst)}</td>
+              </>
+            ) : (
+              <td className={`py-2 ${padR} text-right tabular-nums`}>{plain(r.igst)}</td>
+            )}
+          </tr>
+        ))}
+        <tr className="font-bold text-ink">
+          <td className={`py-2.5 ${pad}`}>Total</td>
+          <td className="py-2.5 text-right tabular-nums">{plain(calc.subTotal)}</td>
+          {intra ? (
+            <>
+              <td className="py-2.5 text-right tabular-nums">{plain(calc.cgst)}</td>
+              <td className={`py-2.5 ${padR} text-right tabular-nums`}>{plain(calc.sgst)}</td>
+            </>
+          ) : (
+            <td className={`py-2.5 ${padR} text-right tabular-nums`}>{plain(calc.igst)}</td>
+          )}
+        </tr>
+      </tbody>
+    </table>
+  )
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-ink-2">{label}</span>
+      <span className="font-bold tabular-nums text-ink">{value}</span>
+    </div>
+  )
+}

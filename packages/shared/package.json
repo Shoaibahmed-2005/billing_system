@@ -1,0 +1,13 @@
+{
+  "name": "@naveen/shared",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "exports": {
+    "./ui": "./src/ui.tsx",
+    "./SignIn": "./src/SignIn.tsx",
+    "./theme.css": "./src/theme.css",
+    "./*": "./src/*.ts"
+  },
+  "//": "The wildcard covers the .ts modules; anything .tsx needs naming here."
+}

@@ -1,0 +1,18 @@
+/*
+  The billing counter's stylesheet.
+
+  The palette, base styles and animations are shared with the quotations
+  site and live in packages/shared/theme.css. Only the printed bill's own
+  geometry is local to this app.
+*/
+@import 'tailwindcss';
+@import '../../../packages/shared/src/theme.css';
+@import './styles/invoice.css';
+
+/*
+  Tailwind finds class names by scanning the files it can see from here,
+  which is this app. The buttons, cards and modals live in the shared
+  package, outside that, so it has to be pointed at them — without this
+  their classes are simply not generated and the app renders unstyled.
+*/
+@source '../../../packages/shared/src';
