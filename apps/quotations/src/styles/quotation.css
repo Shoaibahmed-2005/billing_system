@@ -344,7 +344,24 @@ tr.q-band td {
 
 .quo-sign {
   margin-top: auto;
-  padding-top: 10mm;
+}
+
+/*
+  The gap above the signing rule, which used to be 10mm of padding. It is a
+  box now because the scanned signature sits in it, and it keeps that height
+  whether or not one is printed — so turning the signature off leaves room
+  to sign by hand instead of moving the rule up the page.
+*/
+.quo-sign-slot {
+  min-height: 10mm;
+  display: flex;
+  align-items: flex-end;
+}
+
+.quo-sign-slot img {
+  max-height: 10mm;
+  max-width: 34mm;
+  object-fit: contain;
 }
 
 .quo-sign .rule {

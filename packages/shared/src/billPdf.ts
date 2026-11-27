@@ -32,8 +32,21 @@ const FAMILY = 'helvetica'
 
 type Ctx = {
   pdf: jsPDF
-  /** mm per CSS pixel, taken from the node itself so any zoom cancels out */
+  /** mm per CSS pixel of the laid-out rect, taken from the node itself */
   k: number
+  /**
+   * Screen pixels per layout pixel, when the node is drawn through a CSS
+   * transform — a preview shrunk to fit beside the form, say.
+   *
+   * Positions need no help: they are read from rects that the transform has
+   * already scaled, and k is measured off the same scaled node, so the two
+   * cancel. Font sizes and border widths do not come from rects. The browser
+   * reports those at their unscaled value, so multiplying one by k alone
+   * asks for a 7pt letter on a sheet shrunk to 0.62 and gets 11.29pt. This
+   * is the factor that puts them back on the same footing. It is 1 for a
+   * node drawn at its own size, which is every bill.
+   */
+  s: number
   /** the node's top-left in client coordinates */
   ox: number
   oy: number
@@ -85,7 +98,8 @@ const drawBorders = (c: Ctx, el: Element, cs: CSSStyleDeclaration) => {
     const color = cs.getPropertyValue(`border-${key}-color`)
     if (!w || style === 'none' || style === 'hidden' || !visible(color)) continue
 
-    const d = collapsed ? 0 : w / 2
+    const ws = w * c.s
+    const d = collapsed ? 0 : ws / 2
     const [x1, y1, x2, y2] =
       side === 'Top'
         ? [r.left, r.top + d, r.right, r.top + d]
@@ -96,7 +110,7 @@ const drawBorders = (c: Ctx, el: Element, cs: CSSStyleDeclaration) => {
             : [r.right - d, r.top, r.right - d, r.bottom]
 
     c.pdf.setDrawColor(...rgb(color))
-    c.pdf.setLineWidth(Math.max(w * c.k, 0.09))
+    c.pdf.setLineWidth(Math.max(ws * c.k, 0.09))
     c.pdf.line(mmX(c, x1), mmY(c, y1), mmX(c, x2), mmY(c, y2))
   }
 }
@@ -116,7 +130,7 @@ const drawLine = (c: Ctx, text: string, rect: DOMRect, cs: CSSStyleDeclaration) 
   const t = text.replace(/\s+/g, ' ')
   if (!t.trim()) return
 
-  const sizePt = (parseFloat(cs.fontSize) * c.k) / MM_PER_PT
+  const sizePt = (parseFloat(cs.fontSize) * c.s * c.k) / MM_PER_PT
   const weight = Number(cs.fontWeight) >= 600 || cs.fontWeight === 'bold' ? 'bold' : 'normal'
 
   c.pdf.setFont(FAMILY, weight)
@@ -231,7 +245,8 @@ export const drawBill = (pdf: jsPDF, node: HTMLElement, margin: PageMargins = MA
   if (!host.width || !host.height) throw new Error('the document has not been laid out')
 
   const k = (A4.w - margin.x * 2) / host.width
-  const c: Ctx = { pdf, k, ox: host.left, oy: host.top, px: margin.x, py: margin.y }
+  const s = node.offsetWidth ? host.width / node.offsetWidth : 1
+  const c: Ctx = { pdf, k, s, ox: host.left, oy: host.top, px: margin.x, py: margin.y }
 
   pdf.setLineCap('butt')
   pdf.setLineJoin('miter')

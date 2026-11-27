@@ -10,6 +10,12 @@ interface Props {
   buyer: Company | null
   items: QuoteItem[]
   className?: string
+  /**
+   * The authorised signature to print. Left out when they would rather sign
+   * the sheet by hand after printing — the space stays the same either way,
+   * so the page does not shift when it is turned off.
+   */
+  signature?: string | null
   /** blank rows, so a short quotation still fills the sheet like the sample */
   fillTo?: number
 }
@@ -33,6 +39,7 @@ export default function QuotationDocument({
   buyer,
   items,
   className = '',
+  signature = null,
   fillTo = 0,
 }: Props) {
   const machine = meta.template === 'machine'
@@ -252,6 +259,9 @@ export default function QuotationDocument({
             <div style={{ marginTop: '2mm' }}>For {seller.name.replace(/^NAVEEN/, 'Naveen')},</div>
 
             <div className="quo-sign">
+              <div className="quo-sign-slot">
+                {signature ? <img src={signature} alt="" /> : null}
+              </div>
               <div className="rule" />
               <div>{meta.signatory}</div>
               <div>{meta.signatoryTitle}</div>

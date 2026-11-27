@@ -157,6 +157,9 @@ function Desk({
   const [note, setNote] = useState('')
 
   const sheet = useRef<HTMLDivElement>(null)
+  const sheetWidthMm = template === 'machine' ? 178 : 164.7
+  const [showSignature, setShowSignature] = useState(true)
+  const { box, scale } = useFitToWidth(sheetWidthMm)
 
   /*
     Switching template keeps the buyer and the lines — they are the same
@@ -490,13 +493,37 @@ function Desk({
             </button>
           </div>
 
-          <div className="overflow-auto rounded-xl2 border border-line bg-bone-2 p-4">
+          {/*
+            Beside the sheet for the same reason the term buttons are: what
+            it changes is visible in the preview as you press it.
+          */}
+          {seller.signature ? (
+            <label className="mb-3 flex cursor-pointer items-start gap-3 rounded-xl2 border border-line bg-card px-4 py-3">
+              <input
+                type="checkbox"
+                checked={showSignature}
+                onChange={(e) => setShowSignature(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#b4713a]"
+              />
+              <span className="text-[12.5px] leading-snug text-ink-2">
+                <b className="font-semibold text-ink">Print the signature</b>
+                <br />
+                Turn it off to leave the space blank and sign the sheet by hand.
+              </span>
+            </label>
+          ) : null}
+
+          <div
+            ref={box}
+            className="overflow-hidden rounded-xl2 border border-line bg-bone-2 p-4"
+            style={{ height: `calc(174mm * ${scale} + 2rem)` }}
+          >
             <div
               ref={sheet}
               style={{
-                transform: 'scale(0.62)',
+                transform: `scale(${scale})`,
                 transformOrigin: 'top left',
-                width: template === 'machine' ? '178mm' : '164.7mm',
+                width: `${sheetWidthMm}mm`,
                 height: '174mm',
               }}
             >
@@ -506,6 +533,7 @@ function Desk({
                 buyer={buyer}
                 items={items}
                 fillTo={template === 'machine' ? 6 : 8}
+                signature={showSignature ? seller.signature ?? null : null}
                 className="quo-screen"
               />
             </div>
@@ -514,6 +542,38 @@ function Desk({
       </div>
     </div>
   )
+}
+
+/**
+ * The quotation sheet is drawn at its real printed width — 164.7mm or
+ * 178mm — and then scaled down to sit on screen. A fixed scale works on a
+ * laptop and fails on a phone, where the sheet ends up wider than the box
+ * and half the quotation is behind a sideways drag nobody discovers.
+ *
+ * So measure the box instead and scale to fit it, never past 0.62, which is
+ * the size it has always been on a wide screen. Re-measured on resize, so
+ * turning a phone sideways is not a broken layout.
+ */
+function useFitToWidth(widthMm: number) {
+  const box = useRef<HTMLDivElement>(null)
+  const [scale, setScale] = useState(0.62)
+
+  useEffect(() => {
+    const el = box.current
+    if (!el) return
+    const measure = () => {
+      const padding = 32 // p-4 on both sides
+      const sheetPx = (widthMm * 96) / 25.4
+      const room = el.clientWidth - padding
+      setScale(Math.min(0.62, Math.max(0.25, room / sheetPx)))
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [widthMm])
+
+  return { box, scale }
 }
 
 function TemplateButton({
