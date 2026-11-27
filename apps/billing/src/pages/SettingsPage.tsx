@@ -12,7 +12,7 @@ import {
 } from '@naveen/shared/store'
 import { SELLER } from '@naveen/shared/seller'
 import { prepareSignature } from '@naveen/shared/signature'
-import BackupCard from '../components/BackupCard'
+import BackupCard from '@naveen/shared/BackupCard'
 import CompanyForm from '../components/CompanyForm'
 import { Button, Card, CardHead, Field, Input, Modal, Pill, TextArea } from '@naveen/shared/ui'
 

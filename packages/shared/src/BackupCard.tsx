@@ -7,25 +7,40 @@ import {
   productsWorkbook,
   restoreFromWorkbook,
   type RestoreReport,
-} from '@naveen/shared/backup'
-import { downloadBlob } from '@naveen/shared/pdf'
-import { listCompanies, listInvoices, listProducts } from '@naveen/shared/store'
-import { Button, Card, CardHead } from '@naveen/shared/ui'
+} from './backup'
+import { downloadBlob } from './pdf'
+import { listCompanies, listInvoices, listProducts } from './store'
+import { Button, Card, CardHead } from './ui'
 
 /**
- * Their own backup, in the Settings page.
+ * The spreadsheets, in the Settings page of either site.
  *
- * Supabase charges for backups, so this is how the firm keeps one: three
- * spreadsheets they download whenever they like — end of the month, usually —
- * and one button that reads any of them back in.
+ * Supabase charges for backups, so this is how the firm keeps one: files
+ * they download whenever they like — end of the month, usually — and one
+ * button that reads any of them back in. It also reads the two lists the
+ * office kept before the website existed, their items table and their column
+ * of addresses, so the first load of real data is the same button as every
+ * load after it.
  *
- * Reading back only ever restores what has gone missing. Nothing already in
+ * Reading back only ever puts back what has gone missing. Nothing already in
  * the system is touched, so loading last quarter's file by mistake cannot
- * undo this quarter's prices. The report afterwards says what happened in
- * plain numbers, because "it worked" is not reassuring enough for something
- * people press when they are already worried.
+ * undo this quarter's prices — and the same file loaded twice does nothing
+ * the second time. The cost of that rule is that editing a rate in the
+ * spreadsheet and loading it back does NOT change the rate here, which the
+ * card says out loud, because a silent no-op is worse than a refusal.
+ *
+ * The report afterwards says what happened in plain numbers, because "it
+ * worked" is not reassuring enough for something people press when they are
+ * already worried.
  */
-export default function BackupCard({ onChanged }: { onChanged: () => void }) {
+export default function BackupCard({
+  onChanged,
+  bills = true,
+}: {
+  onChanged: () => void
+  /** the quotations site has no ledger of its own to download */
+  bills?: boolean
+}) {
   const picker = useRef<HTMLInputElement>(null)
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
@@ -62,8 +77,8 @@ export default function BackupCard({ onChanged }: { onChanged: () => void }) {
   return (
     <Card>
       <CardHead
-        title="Backup"
-        subtitle="Download the catalogue and the ledger as Excel, and load them back if anything is ever lost."
+        title="Spreadsheets"
+        subtitle="Download everything as Excel, and load a file back to add what is missing."
       />
 
       {/*
@@ -90,15 +105,17 @@ export default function BackupCard({ onChanged }: { onChanged: () => void }) {
         >
           {busy === 'companies' ? 'Building…' : 'Download companies'}
         </Button>
-        <Button
-          className="w-full sm:w-auto"
-          variant="outline"
-          size="sm"
-          disabled={!!busy}
-          onClick={() => save('bills', async () => billsWorkbook(await listInvoices()))}
-        >
-          {busy === 'bills' ? 'Building…' : 'Download bills'}
-        </Button>
+        {bills ? (
+          <Button
+            className="w-full sm:w-auto"
+            variant="outline"
+            size="sm"
+            disabled={!!busy}
+            onClick={() => save('bills', async () => billsWorkbook(await listInvoices()))}
+          >
+            {busy === 'bills' ? 'Building…' : 'Download bills'}
+          </Button>
+        ) : null}
 
         <span className="hidden h-6 w-px bg-line sm:block" />
 
@@ -108,7 +125,7 @@ export default function BackupCard({ onChanged }: { onChanged: () => void }) {
           disabled={!!busy}
           onClick={() => picker.current?.click()}
         >
-          {busy === 'import' ? 'Reading…' : 'Import a backup'}
+          {busy === 'import' ? 'Reading…' : 'Import a spreadsheet'}
         </Button>
         <input
           ref={picker}
@@ -130,10 +147,17 @@ export default function BackupCard({ onChanged }: { onChanged: () => void }) {
         ) : report ? (
           <Report report={report} />
         ) : (
-          <p>
-            Importing only puts back what has gone missing. Anything still here is left exactly as
-            it is, so an old file can never overwrite today's prices.
-          </p>
+          <div className="space-y-1.5">
+            <p>
+              Importing adds only what is not here yet — the same file loaded twice changes nothing
+              the second time, and a file with ten new companies among a hundred old ones adds the
+              ten. Your own items and address lists are read as well as the files downloaded here.
+            </p>
+            <p>
+              Because nothing here is ever overwritten, <b className="font-semibold text-ink">editing
+              a row in Excel and loading it back does not change it</b>. Change those on the site.
+            </p>
+          </div>
         )}
       </div>
     </Card>

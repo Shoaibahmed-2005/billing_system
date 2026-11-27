@@ -6,6 +6,7 @@
   "exports": {
     "./ui": "./src/ui.tsx",
     "./SignIn": "./src/SignIn.tsx",
+    "./BackupCard": "./src/BackupCard.tsx",
     "./theme.css": "./src/theme.css",
     "./*": "./src/*.ts"
   },

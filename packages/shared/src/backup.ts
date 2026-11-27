@@ -25,6 +25,7 @@
  */
 import type { Company, Invoice, InvoiceItem, Product } from './types'
 import { buildWorkbook, readWorkbook, type Row, type Sheet } from './xlsx'
+import { readForeignSheet } from './importSheets'
 import {
   listCompanies,
   listInvoices,
@@ -260,6 +261,28 @@ const pick = (row: string[], map: Map<string, number>, ...names: string[]): stri
 const key = (s: string) => s.trim().toLowerCase()
 
 /**
+ * What makes a company the same company.
+ *
+ * The name alone is not enough, and their own address list is why: Chettinad
+ * Academy appears twice under one GSTIN for two campuses, and Dural Trims
+ * twice for two plants. Those are four places to deliver to and four
+ * addresses to print, so matching on the name would quietly drop half of
+ * them. Multitech Tools also appears twice with the same address typed
+ * identically, and that one really is a duplicate — which this key collapses
+ * without being told to.
+ *
+ * Punctuation and spacing vary between how a name is typed on two different
+ * days, so neither counts. The id, where there is one, still wins over all
+ * of this.
+ */
+const sameness = (name: string, addressLines: string[]) =>
+  [name, ...addressLines]
+    .join(' ')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim()
+
+/**
  * Loads a backup file, putting back only what has gone missing.
  *
  * It takes whichever of the three sheets the file happens to contain, so the
@@ -279,7 +302,19 @@ export const restoreFromWorkbook = async (file: Blob): Promise<RestoreReport> =>
     if (name === key(PRODUCTS_SHEET)) await restoreProducts(sheet.rows, report.products)
     else if (name === key(COMPANIES_SHEET)) await restoreCompanies(sheet.rows, report.companies)
     else if (name === key(BILLS_SHEET)) await restoreBills(sheet.rows, report.bills)
-    else if (sheet.rows.some((r) => r.some((c) => c.trim()))) report.ignored.push(sheet.name)
+    else if (sheet.rows.some((r) => r.some((c) => c.trim()))) {
+      /*
+        Not one of ours by name. It may still be one of the lists the office
+        keeps in its own shape — the items table, or the addresses typed down
+        a column. Those are translated into the rows this file would have had
+        and loaded the same way, so they get the same protection against
+        duplicates rather than a second set of rules.
+      */
+      const foreign = readForeignSheet(sheet.rows)
+      if (!foreign) report.ignored.push(sheet.name)
+      else if (foreign.kind === 'products') await restoreProducts(foreign.rows, report.products)
+      else await restoreCompanies(foreign.rows, report.companies)
+    }
   }
 
   if (!sheets.length) throw new Error('That file has no sheets in it.')
@@ -340,7 +375,7 @@ const restoreCompanies = async (rows: string[][], count: RestoreCount) => {
 
   const existing = await listCompanies()
   const byId = new Map(existing.map((c) => [c.id, c]))
-  const byName = new Map(existing.map((c) => [key(c.name), c]))
+  const byWhat = new Map(existing.map((c) => [sameness(c.name, c.addressLines), c]))
   const taken = new Set(existing.map((c) => c.id))
 
   for (const row of rows.slice(1)) {
@@ -350,8 +385,10 @@ const restoreCompanies = async (rows: string[][], count: RestoreCount) => {
       continue
     }
 
+    const addressLines = addressCols.map((i) => (row[i] ?? '').trim()).filter(Boolean)
+
     const id = pick(row, map, 'Id')
-    if ((id && byId.has(id)) || byName.has(key(name))) {
+    if ((id && byId.has(id)) || byWhat.has(sameness(name, addressLines))) {
       count.alreadyThere++
       continue
     }
@@ -359,7 +396,7 @@ const restoreCompanies = async (rows: string[][], count: RestoreCount) => {
     const company: Company = {
       id: id && !taken.has(id) ? id : newId('c'),
       name,
-      addressLines: addressCols.map((i) => (row[i] ?? '').trim()).filter(Boolean),
+      addressLines,
       gstin: pick(row, map, 'GSTIN', 'GST No', 'GST'),
       state: pick(row, map, 'State') || 'Tamil Nadu',
       phone: pick(row, map, 'Phone') || undefined,
@@ -370,7 +407,7 @@ const restoreCompanies = async (rows: string[][], count: RestoreCount) => {
     await saveCompany(company)
     taken.add(company.id)
     byId.set(company.id, company)
-    byName.set(key(company.name), company)
+    byWhat.set(sameness(company.name, company.addressLines), company)
     count.added++
   }
 }

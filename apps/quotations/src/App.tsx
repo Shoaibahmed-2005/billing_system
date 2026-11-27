@@ -26,6 +26,7 @@ import SignIn from '@naveen/shared/SignIn'
 import { Button, Card, CardHead, Field, Input, Select } from '@naveen/shared/ui'
 import QuotationDocument from './components/QuotationDocument'
 import MaintenancePage from './MaintenancePage'
+import BackupCard from '@naveen/shared/BackupCard'
 import './styles/quotation.css'
 
 /**
@@ -66,11 +67,13 @@ export default function App() {
   return <Shell />
 }
 
-type View = 'quotations' | 'maintenance'
+type View = 'quotations' | 'maintenance' | 'settings'
 
 /**
- * Two screens behind two tabs, sharing one load of the companies and the
- * catalogue. Both come from the billing counter's database.
+ * Three screens behind three tabs, sharing one load of the companies and the
+ * catalogue. Both come from the billing counter's database — the same rows
+ * the other site reads and writes, so a company added at the counter is here
+ * on the next load, and one imported here is at the counter.
  */
 function Shell() {
   const [view, setView] = useState<View>('quotations')
@@ -78,12 +81,16 @@ function Shell() {
   const [companies, setCompanies] = useState<Company[]>([])
   const [products, setProducts] = useState<Product[]>([])
 
+  const load = async () => {
+    setCompanies(await listCompanies())
+    setProducts(await listProducts())
+    setSeller(await getSeller())
+  }
+
   useEffect(() => {
     void (async () => {
       await ensureSeeded()
-      setCompanies(await listCompanies())
-      setProducts(await listProducts())
-      setSeller(await getSeller())
+      await load()
     })()
   }, [])
 
@@ -96,6 +103,9 @@ function Shell() {
           </Tab>
           <Tab on={view === 'maintenance'} onClick={() => setView('maintenance')}>
             Maintenance
+          </Tab>
+          <Tab on={view === 'settings'} onClick={() => setView('settings')}>
+            Settings
           </Tab>
           {authEnabled ? (
             <Button
@@ -112,10 +122,37 @@ function Shell() {
 
       {view === 'quotations' ? (
         <Desk seller={seller} companies={companies} products={products} />
-      ) : (
+      ) : view === 'maintenance' ? (
         <MaintenancePage companies={companies} products={products} />
+      ) : (
+        <SettingsView onChanged={() => void load()} />
       )}
     </>
+  )
+}
+
+/**
+ * The spreadsheets, and nothing else yet.
+ *
+ * There is no second copy of the backup screen: it is the same card the
+ * billing site shows, reading and writing the same tables. The ledger is not
+ * offered here, because bills are the counter's business and a download of
+ * them on this site would only raise the question of why.
+ */
+function SettingsView({ onChanged }: { onChanged: () => void }) {
+  return (
+    <div className="anim-rise mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <header className="mb-6">
+        <h1 className="font-display text-[30px] font-semibold leading-none tracking-tight text-ink">
+          Settings
+        </h1>
+        <p className="mt-1.5 text-[13px] text-muted">
+          The companies and the catalogue are shared with the billing site, so a change made in
+          either one shows in both.
+        </p>
+      </header>
+      <BackupCard onChanged={onChanged} bills={false} />
+    </div>
   )
 }
 
