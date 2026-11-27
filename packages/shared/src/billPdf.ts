@@ -23,7 +23,7 @@ import type { jsPDF } from 'jspdf'
 /** A4, and the margins the print stylesheet uses. */
 const A4 = { w: 210, h: 297 }
 const MARGIN = { x: 12, y: 11 }
-const SHEET = { w: A4.w - MARGIN.x * 2, h: A4.h - MARGIN.y * 2 }
+
 
 const MM_PER_PT = 25.4 / 72
 
@@ -212,17 +212,40 @@ const walk = (c: Ctx, el: Element) => {
  * `node` must be on-screen or off-screen but rendered — a node that has never
  * been laid out has no geometry to copy.
  */
-export const drawBill = (pdf: jsPDF, node: HTMLElement) => {
-  const host = node.getBoundingClientRect()
-  if (!host.width || !host.height) throw new Error('the bill has not been laid out')
+/**
+ * How much white to leave around the drawing.
+ *
+ * The bill fills a 186mm sheet and wants 12mm either side. A quotation is
+ * narrower — the firm's own two are 164.7mm and 178mm wide — and centring
+ * one on the bill's margins would stretch it. So the page is given margins
+ * that suit the document, and the document is drawn at the width it was
+ * laid out at rather than scaled to fit.
+ */
+export interface PageMargins {
+  x: number
+  y: number
+}
 
-  const k = SHEET.w / host.width
-  const c: Ctx = { pdf, k, ox: host.left, oy: host.top, px: MARGIN.x, py: MARGIN.y }
+export const drawBill = (pdf: jsPDF, node: HTMLElement, margin: PageMargins = MARGIN) => {
+  const host = node.getBoundingClientRect()
+  if (!host.width || !host.height) throw new Error('the document has not been laid out')
+
+  const k = (A4.w - margin.x * 2) / host.width
+  const c: Ctx = { pdf, k, ox: host.left, oy: host.top, px: margin.x, py: margin.y }
 
   pdf.setLineCap('butt')
   pdf.setLineJoin('miter')
   walk(c, node)
 }
+
+/**
+ * Margins that put a document of a known width on the page at its own size,
+ * centred, rather than stretched to the bill's width.
+ */
+export const marginsForWidth = (widthMm: number, y = 11): PageMargins => ({
+  x: Math.max(6, (A4.w - widthMm) / 2),
+  y,
+})
 
 /** Everything the two entry points share. */
 const newDoc = async () => {
@@ -234,6 +257,19 @@ const newDoc = async () => {
 export const billToPdfBlob = async (node: HTMLElement): Promise<Blob> => {
   const pdf = await newDoc()
   drawBill(pdf, node)
+  return pdf.output('blob')
+}
+
+/**
+ * Any laid-out document, one A4 page, at the width it was laid out at.
+ * The quotations use this; the engine itself never knew what a bill was.
+ */
+export const documentToPdfBlob = async (
+  node: HTMLElement,
+  widthMm: number,
+): Promise<Blob> => {
+  const pdf = await newDoc()
+  drawBill(pdf, node, marginsForWidth(widthMm))
   return pdf.output('blob')
 }
 

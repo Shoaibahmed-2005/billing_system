@@ -1,0 +1,401 @@
+/* =========================================================================
+   The printed quotation — two layouts, both measured off the firm's own
+   PDFs rather than copied by eye.
+
+   Where the numbers come from. Each PDF was taken apart and every rule and
+   every run of text read out in points; the column widths below are those
+   positions turned into percentages of the table, so the proportions are
+   the firm's own to a tenth of a point.
+
+                      sheet    S.No   desc    HSN    unit/qty  price  value
+     spares          164.7mm   7.00   55.67   8.71   10.44     7.26   10.91
+     machine         178.0mm   6.62   59.48   7.32    8.10     8.08   10.40
+
+   The two differ in more than widths, which is why they are two templates
+   and not one with options:
+
+     spares   Consignee block with SI No / Date / Ref beside it, a priced
+              table that adds up, Sub-total and GST and Total each on their
+              own rule in the last column only, and TERMS left-aligned
+              under a short underline.
+     machine  A "To" block, a Sub: line, no totals whatsoever — just
+              "GST 18% Extra" floating in the table — an empty band at the
+              foot of the table, and TERMS centred in a ruled band.
+
+   Both sit inside a double box around the whole sheet, as the samples do.
+   ========================================================================= */
+
+.quo,
+.quo * {
+  box-sizing: border-box;
+}
+
+.quo {
+  --line: #000;
+  --bw: 0.5pt;
+
+  background: #fff;
+  color: #000;
+  font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
+  font-size: 9.5pt;
+  line-height: 1.22;
+  -webkit-font-smoothing: antialiased;
+
+  /* Android inflates text it decides is body copy; neither copy may be. */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+.quo-spares {
+  width: 164.7mm;
+}
+
+.quo-machine {
+  width: 178mm;
+}
+
+/* the double rule around the whole sheet */
+.quo-box {
+  border: var(--bw) solid var(--line);
+  padding: 1pt;
+  min-height: 268mm;
+  display: flex;
+  flex-direction: column;
+}
+
+.quo-inner {
+  border: var(--bw) solid var(--line);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 3.2mm 3mm 3mm;
+}
+
+/* ---------------------------------------------------------------- head -- */
+
+.quo-seller {
+  line-height: 1.32;
+}
+
+.quo-seller .name {
+  font-size: 13pt;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  margin-bottom: 0.6mm;
+}
+
+.quo-title {
+  text-align: center;
+  font-size: 11pt;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: 2.6mm 0 1.4mm;
+}
+
+/* ------------------------------------------------- the two header blocks -- */
+
+/* spares: a ruled box, consignee on the left, SI No / Date / Ref on the right */
+.quo-head {
+  display: flex;
+  border: var(--bw) solid var(--line);
+  border-left: 0;
+  border-right: 0;
+}
+
+.quo-head-left {
+  width: 50.3%;
+  padding: 1.1mm 0.4mm 1.4mm;
+}
+
+.quo-head-right {
+  width: 49.7%;
+  border-left: var(--bw) solid var(--line);
+  padding: 1.1mm 0 1.4mm 1.6mm;
+}
+
+.quo-ref {
+  display: grid;
+  grid-template-columns: 11mm 3mm 1fr;
+  row-gap: 1.1mm;
+}
+
+/* machine: no box — a date on the right, "To" and the address beneath */
+.quo-date-line {
+  text-align: right;
+  margin: 1.5mm 0 3mm;
+}
+
+.quo-to {
+  margin-bottom: 1mm;
+}
+
+.quo-to-address {
+  padding-left: 14mm;
+}
+
+.quo-subject {
+  text-align: center;
+  font-weight: 700;
+  margin: 5mm 0 2mm;
+}
+
+.quo-greeting {
+  margin-top: 1.5mm;
+}
+
+.quo-greeting .lead {
+  margin-top: 1.2mm;
+}
+
+/* --------------------------------------------------------------- items -- */
+
+table.quo-items {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-top: 2.6mm;
+}
+
+table.quo-items th,
+table.quo-items td {
+  border-left: var(--bw) solid var(--line);
+  padding: 1mm 1.2mm;
+  vertical-align: top;
+  font-weight: 400;
+}
+
+table.quo-items th:first-child,
+table.quo-items td:first-child {
+  border-left: 0;
+}
+
+table.quo-items thead th {
+  border-top: var(--bw) solid var(--line);
+  border-bottom: var(--bw) solid var(--line);
+  font-weight: 700;
+  text-align: center;
+  padding: 1.1mm 0.25mm;
+  /*
+    Smaller than the body, and allowed to run a shade past its column
+    rather than wrap.
+
+    Two of these headings are wider than the columns they sit over —
+    "Unit Price" over 11.9mm, "AMOUNT (R.S)" over 18.5mm — and the firm's
+    own sheets let them spill rather than break in two. Measured off the
+    PDFs: their "Unit Price" ends about two points past its rule. Wrapping
+    them instead would make the heading row twice as deep as theirs.
+  */
+  font-size: 7pt;
+  white-space: nowrap;
+}
+
+/* the body is one open run of rows — the samples rule no line between them */
+table.quo-items tbody tr.q-item td {
+  padding-top: 1.5mm;
+  padding-bottom: 1.5mm;
+}
+
+table.quo-items tr.q-fill td {
+  padding: 0;
+}
+
+table.quo-items tfoot td {
+  border-top: var(--bw) solid var(--line);
+}
+
+/* ---- spares columns ---- */
+
+.quo-spares .c-sl {
+  width: 7%;
+  text-align: center;
+}
+.quo-spares .c-desc {
+  width: 55.67%;
+  overflow-wrap: anywhere;
+}
+.quo-spares .c-hsn {
+  width: 8.71%;
+  text-align: center;
+}
+.quo-spares .c-unit {
+  width: 10.44%;
+  text-align: center;
+}
+.quo-spares .c-rate {
+  width: 7.26%;
+  text-align: center;
+}
+.quo-spares .c-value {
+  width: 10.91%;
+  text-align: right;
+}
+
+/* ---- machine columns ---- */
+
+.quo-machine .c-sl {
+  width: 6.62%;
+  text-align: center;
+}
+.quo-machine .c-desc {
+  width: 59.48%;
+  overflow-wrap: anywhere;
+}
+.quo-machine .c-hsn {
+  width: 7.32%;
+  text-align: center;
+}
+.quo-machine .c-unit {
+  width: 8.1%;
+  text-align: center;
+}
+.quo-machine .c-rate {
+  width: 8.08%;
+  text-align: center;
+}
+.quo-machine .c-value {
+  width: 10.4%;
+  text-align: right;
+}
+
+/*
+  Only the money column is ruled on the totals, exactly as the sample has it:
+  a line above the sub-total and a line above the Total, and nothing drawn
+  across the rest of the row.
+*/
+tr.q-sub td.c-value {
+  border-top: var(--bw) solid var(--line);
+  padding-top: 1.4mm;
+}
+
+tr.q-total td.c-value {
+  border-top: var(--bw) solid var(--line);
+  font-weight: 700;
+  padding-top: 1.4mm;
+}
+
+tr.q-total td.c-rate {
+  text-align: right;
+  font-weight: 700;
+}
+
+tr.q-gst td.c-desc {
+  text-align: right;
+}
+
+/* the machine sheet says this instead of adding anything up */
+tr.q-extra td {
+  text-align: center;
+  padding-top: 7mm;
+  padding-bottom: 7mm;
+  font-weight: 400;
+}
+
+/* an empty band closes the machine sheet's table */
+tr.q-band td {
+  border-top: var(--bw) solid var(--line);
+  height: 5.5mm;
+}
+
+/* --------------------------------------------------------------- terms -- */
+
+.quo-terms {
+  margin-top: 2.4mm;
+}
+
+/* spares: left, with a short rule under the heading */
+.quo-terms .t-head-left {
+  font-weight: 700;
+  display: inline-block;
+  border-bottom: 0.7pt solid var(--line);
+  padding-bottom: 0.3mm;
+  margin-bottom: 1.2mm;
+}
+
+/* machine: centred inside a ruled band across the sheet */
+.quo-terms .t-head-band {
+  border-top: var(--bw) solid var(--line);
+  border-bottom: var(--bw) solid var(--line);
+  text-align: center;
+  font-weight: 700;
+  padding: 1.4mm 0;
+  margin-bottom: 1.6mm;
+}
+
+.quo-terms dl {
+  display: grid;
+  grid-template-columns: 20mm 1fr;
+  row-gap: 0.9mm;
+  margin: 0;
+}
+
+.quo-terms dt,
+.quo-terms dd {
+  margin: 0;
+}
+
+/* ----------------------------------------------------------------- end -- */
+
+.quo-close {
+  margin-top: 3.4mm;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.quo-sign {
+  margin-top: auto;
+  padding-top: 10mm;
+}
+
+.quo-sign .rule {
+  width: 34mm;
+  border-top: 0.8pt solid var(--line);
+  margin-bottom: 1mm;
+}
+
+/* ------------------------------------------------------- screen preview -- */
+
+.quo-screen {
+  box-shadow: 0 18px 50px rgba(34, 24, 18, 0.18);
+}
+
+/* ---------------------------------------------------------------- print -- */
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: 100%;
+  }
+
+  body > *:not(#print-root) {
+    display: none !important;
+  }
+
+  #print-root {
+    display: block !important;
+    height: 100%;
+  }
+
+  .quo {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    padding: 9mm 11mm;
+    box-shadow: none !important;
+    break-after: avoid;
+    break-inside: avoid;
+  }
+
+  .quo-box {
+    min-height: 0;
+    flex: 1;
+  }
+}
