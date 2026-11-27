@@ -45,6 +45,12 @@ export default function BackupCard({
   const [busy, setBusy] = useState('')
   const [error, setError] = useState('')
   const [report, setReport] = useState<RestoreReport | null>(null)
+  /*
+    Off every time the page loads, and not remembered. Someone who turned it
+    on last month to fix a rate should not have it still on when they load an
+    old file this month without looking.
+  */
+  const [update, setUpdate] = useState(false)
 
   const save = async (what: string, build: () => Promise<Blob>) => {
     setError('')
@@ -59,12 +65,12 @@ export default function BackupCard({
     }
   }
 
-  const load = async (file: File) => {
+  const load = async (file: File, update: boolean) => {
     setError('')
     setReport(null)
     setBusy('import')
     try {
-      const result = await restoreFromWorkbook(file)
+      const result = await restoreFromWorkbook(file, { update })
       setReport(result)
       if (!nothingRestored(result)) onChanged()
     } catch (e) {
@@ -136,10 +142,26 @@ export default function BackupCard({
             const file = e.target.files?.[0]
             // cleared so the same file can be picked twice in a row
             e.target.value = ''
-            if (file) void load(file)
+            if (file) void load(file, update)
           }}
         />
       </div>
+
+      <label className="flex cursor-pointer items-start gap-3 border-t border-line px-4 py-3.5 sm:px-6">
+        <input
+          type="checkbox"
+          checked={update}
+          onChange={(e) => setUpdate(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[#b4713a]"
+        />
+        <span className="text-[12.5px] leading-snug text-ink-2">
+          <b className="font-semibold text-ink">Also change rows that are already here</b>
+          <br />
+          For editing rates or addresses in the spreadsheet and loading them back. Leave it off
+          unless that is what you are doing — an old file will put its old prices back. Bills are
+          never changed either way.
+        </span>
+      </label>
 
       <div className="border-t border-line px-4 py-4 text-[12.5px] text-muted sm:px-6">
         {error ? (
@@ -154,8 +176,8 @@ export default function BackupCard({
               ten. Your own items and address lists are read as well as the files downloaded here.
             </p>
             <p>
-              Because nothing here is ever overwritten, <b className="font-semibold text-ink">editing
-              a row in Excel and loading it back does not change it</b>. Change those on the site.
+              Editing a row in the spreadsheet changes nothing here unless the box above is
+              ticked. An empty cell never clears anything — it means "leave this as it is".
             </p>
           </div>
         )}
@@ -166,9 +188,13 @@ export default function BackupCard({
 
 function Report({ report }: { report: RestoreReport }) {
   const lines: string[] = []
-  const say = (what: string, c: { added: number; alreadyThere: number; skipped: number }) => {
-    if (!c.added && !c.alreadyThere && !c.skipped) return
-    const parts = [`${c.alreadyThere} already here`]
+  const say = (
+    what: string,
+    c: { added: number; updated: number; alreadyThere: number; skipped: number },
+  ) => {
+    if (!c.added && !c.updated && !c.alreadyThere && !c.skipped) return
+    const parts = [`${c.alreadyThere} unchanged`]
+    if (c.updated) parts.unshift(`${c.updated} changed`)
     if (c.added) parts.unshift(`${c.added} put back`)
     if (c.skipped) parts.push(`${c.skipped} unreadable`)
     lines.push(`${what}: ${parts.join(', ')}`)

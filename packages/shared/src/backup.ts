@@ -221,6 +221,8 @@ export const backupFileName = (what: string): string => {
 export interface RestoreCount {
   /** rows that were missing and have been put back */
   added: number
+  /** rows that were already here and have been changed to match the file */
+  updated: number
   /** rows that are already in the system, left exactly as they were */
   alreadyThere: number
   /** rows that could not be read — no name, usually a stray line */
@@ -235,10 +237,48 @@ export interface RestoreReport {
   ignored: string[]
 }
 
-const empty = (): RestoreCount => ({ added: 0, alreadyThere: 0, skipped: 0 })
+const empty = (): RestoreCount => ({ added: 0, updated: 0, alreadyThere: 0, skipped: 0 })
 
 export const nothingRestored = (r: RestoreReport): boolean =>
-  r.products.added + r.companies.added + r.bills.added === 0
+  r.products.added +
+    r.companies.added +
+    r.bills.added +
+    r.products.updated +
+    r.companies.updated ===
+  0
+
+/**
+ * What a load is allowed to do.
+ *
+ * Adding is always safe: the worst an old file can do is bring back
+ * something deleted on purpose, which is visible and can be deleted again.
+ * Changing what is here is not safe in the same way — last quarter's file
+ * carries last quarter's prices, and loading it would quietly undo a term of
+ * price rises. So it is off unless asked for, every time, and never applies
+ * to bills.
+ *
+ * Even when asked for, an empty cell means "leave this alone" rather than
+ * "empty this". A sheet with no phone column cannot wipe the phone numbers,
+ * which matters because their own lists carry fewer columns than ours.
+ */
+export interface RestoreOptions {
+  /** change rows that are already here to match the file */
+  update?: boolean
+}
+
+/** The cells that were actually filled in, by our own column names. */
+const filled = (row: string[], map: Map<string, number>, ...names: string[]): string | null => {
+  for (const n of names) {
+    const i = map.get(n.toLowerCase())
+    if (i !== undefined) {
+      const v = (row[i] ?? '').trim()
+      if (v) return v
+    }
+  }
+  return null
+}
+
+const differs = (a: unknown, b: unknown) => JSON.stringify(a) !== JSON.stringify(b)
 
 /** Reads a heading row into a name -> column index map, case-insensitively. */
 const headerMap = (row: string[]): Map<string, number> => {
@@ -288,7 +328,11 @@ const sameness = (name: string, addressLines: string[]) =>
  * It takes whichever of the three sheets the file happens to contain, so the
  * three separate downloads and a combined one all work the same way.
  */
-export const restoreFromWorkbook = async (file: Blob): Promise<RestoreReport> => {
+export const restoreFromWorkbook = async (
+  file: Blob,
+  options: RestoreOptions = {},
+): Promise<RestoreReport> => {
+  const update = options.update === true
   const sheets = await readWorkbook(file)
   const report: RestoreReport = {
     products: empty(),
@@ -299,8 +343,9 @@ export const restoreFromWorkbook = async (file: Blob): Promise<RestoreReport> =>
 
   for (const sheet of sheets) {
     const name = key(sheet.name)
-    if (name === key(PRODUCTS_SHEET)) await restoreProducts(sheet.rows, report.products)
-    else if (name === key(COMPANIES_SHEET)) await restoreCompanies(sheet.rows, report.companies)
+    if (name === key(PRODUCTS_SHEET)) await restoreProducts(sheet.rows, report.products, update)
+    else if (name === key(COMPANIES_SHEET))
+      await restoreCompanies(sheet.rows, report.companies, update)
     else if (name === key(BILLS_SHEET)) await restoreBills(sheet.rows, report.bills)
     else if (sheet.rows.some((r) => r.some((c) => c.trim()))) {
       /*
@@ -312,8 +357,9 @@ export const restoreFromWorkbook = async (file: Blob): Promise<RestoreReport> =>
       */
       const foreign = readForeignSheet(sheet.rows)
       if (!foreign) report.ignored.push(sheet.name)
-      else if (foreign.kind === 'products') await restoreProducts(foreign.rows, report.products)
-      else await restoreCompanies(foreign.rows, report.companies)
+      else if (foreign.kind === 'products')
+        await restoreProducts(foreign.rows, report.products, update)
+      else await restoreCompanies(foreign.rows, report.companies, update)
     }
   }
 
@@ -321,7 +367,7 @@ export const restoreFromWorkbook = async (file: Blob): Promise<RestoreReport> =>
   return report
 }
 
-const restoreProducts = async (rows: string[][], count: RestoreCount) => {
+const restoreProducts = async (rows: string[][], count: RestoreCount, update = false) => {
   if (rows.length < 2) return
   const map = headerMap(rows[0])
 
@@ -338,8 +384,49 @@ const restoreProducts = async (rows: string[][], count: RestoreCount) => {
     }
 
     const id = pick(row, map, 'Id')
-    if ((id && byId.has(id)) || byName.has(key(name))) {
-      count.alreadyThere++
+    const sameId = id ? byId.get(id) : undefined
+    const here = sameId ?? byName.get(key(name))
+    if (here) {
+      if (!update) {
+        count.alreadyThere++
+        continue
+      }
+
+      /*
+        A rename only counts when the row was found by its id. Found by name,
+        the name is the thing that matched, so the only difference left is
+        how it was typed — and taking it would make the load depend on which
+        row came last. Their own file has exactly that: J.P.Engineering on
+        one line and J.P. Engineering on another, which flipped the stored
+        name back and forth on every load until this stopped it.
+      */
+      const merged: Product = {
+        ...here,
+        name: sameId ? name : here.name,
+        hsn: filled(row, map, 'HSN/SAC', 'HSN', 'HSN Code') ?? here.hsn,
+        unit: filled(row, map, 'Unit', 'UQM') ?? here.unit,
+        per: filled(row, map, 'Per') ?? here.per,
+        rate: num(filled(row, map, 'Rate') ?? String(here.rate)),
+        gstRate: num(filled(row, map, 'GST %', 'GST') ?? String(here.gstRate)),
+        kind: (() => {
+          const t = filled(row, map, 'Type', 'Kind')
+          return t ? (/service/i.test(t) ? 'service' : 'goods') : here.kind
+        })(),
+        active: (() => {
+          const a = filled(row, map, 'In use', 'Active')
+          return a ? !isNo(a) : here.active
+        })(),
+      }
+
+      if (!differs(merged, here)) {
+        count.alreadyThere++
+        continue
+      }
+
+      await saveProduct(merged)
+      byId.set(merged.id, merged)
+      byName.set(key(merged.name), merged)
+      count.updated++
       continue
     }
 
@@ -363,7 +450,7 @@ const restoreProducts = async (rows: string[][], count: RestoreCount) => {
   }
 }
 
-const restoreCompanies = async (rows: string[][], count: RestoreCount) => {
+const restoreCompanies = async (rows: string[][], count: RestoreCount, update = false) => {
   if (rows.length < 2) return
   const map = headerMap(rows[0])
 
@@ -388,8 +475,44 @@ const restoreCompanies = async (rows: string[][], count: RestoreCount) => {
     const addressLines = addressCols.map((i) => (row[i] ?? '').trim()).filter(Boolean)
 
     const id = pick(row, map, 'Id')
-    if ((id && byId.has(id)) || byWhat.has(sameness(name, addressLines))) {
-      count.alreadyThere++
+    const sameId = id ? byId.get(id) : undefined
+    const here = sameId ?? byWhat.get(sameness(name, addressLines))
+    if (here) {
+      if (!update) {
+        count.alreadyThere++
+        continue
+      }
+
+      /*
+        An address edited in a file that carries ids is matched by its id, so
+        the change lands. The same edit in a file with no ids reads as a
+        different company, because the address is half of what identifies one
+        — that is the price of telling two campuses of one firm apart.
+      */
+      const merged: Company = {
+        ...here,
+        // only an id says "this is that row, renamed"; see the note above
+        name: sameId ? name : here.name,
+        addressLines: sameId && addressLines.length ? addressLines : here.addressLines,
+        gstin: filled(row, map, 'GSTIN', 'GST No', 'GST') ?? here.gstin,
+        state: filled(row, map, 'State') ?? here.state,
+        phone: filled(row, map, 'Phone') ?? here.phone,
+        email: filled(row, map, 'Email') ?? here.email,
+        active: (() => {
+          const a = filled(row, map, 'In use', 'Active')
+          return a ? !isNo(a) : here.active
+        })(),
+      }
+
+      if (!differs(merged, here)) {
+        count.alreadyThere++
+        continue
+      }
+
+      await saveCompany(merged)
+      byId.set(merged.id, merged)
+      byWhat.set(sameness(merged.name, merged.addressLines), merged)
+      count.updated++
       continue
     }
 
