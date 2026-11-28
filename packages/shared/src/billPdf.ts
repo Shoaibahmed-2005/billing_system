@@ -288,6 +288,27 @@ export const documentToPdfBlob = async (
   return pdf.output('blob')
 }
 
+/**
+ * One document across several pages, each already laid out as a whole sheet.
+ *
+ * The pages are drawn, not flowed: whoever builds them has decided what goes
+ * where, and this only puts each one on its own A4 at the width it was laid
+ * out at. A quotation too long for one page is the reason it exists.
+ */
+export const documentsToPdfBlob = async (
+  nodes: HTMLElement[],
+  widthMm: number,
+): Promise<Blob> => {
+  if (!nodes.length) throw new Error('there are no pages to draw')
+  const pdf = await newDoc()
+  const margin = marginsForWidth(widthMm)
+  nodes.forEach((node, i) => {
+    if (i > 0) pdf.addPage()
+    drawBill(pdf, node, margin)
+  })
+  return pdf.output('blob')
+}
+
 /** A month of bills, a page each. */
 export const billsToPdfBlob = async (
   nodes: HTMLElement[],

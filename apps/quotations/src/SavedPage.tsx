@@ -22,11 +22,14 @@ export default function SavedPage({
   onOpen,
   onDelete,
   onNew,
+  onStartMaintenance,
 }: {
   quotations: Quotation[]
   onOpen: (q: Quotation) => void
   onDelete: (q: Quotation) => void
   onNew: () => void
+  /** start a year of maintenance running from this quotation's date */
+  onStartMaintenance: (q: Quotation) => void
 }) {
   const [q, setQ] = useState('')
   const [confirming, setConfirming] = useState<string | null>(null)
@@ -124,6 +127,15 @@ export default function SavedPage({
                     <>
                       <Button size="sm" variant="outline" onClick={() => onOpen(x)}>
                         Open
+                      </Button>
+                      {/*
+                        The year of maintenance runs from the quotation's own
+                        date, so starting it from here is one press instead of
+                        copying a company name and two dates onto the other
+                        screen.
+                      */}
+                      <Button size="sm" variant="ghost" onClick={() => onStartMaintenance(x)}>
+                        Maintenance
                       </Button>
                       <Button size="sm" variant="ghost" onClick={() => setConfirming(x.id)}>
                         Delete

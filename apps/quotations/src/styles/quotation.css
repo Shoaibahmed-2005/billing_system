@@ -30,6 +30,16 @@
   box-sizing: border-box;
 }
 
+/*
+  The type, read out of the firm's own two PDFs rather than judged by eye.
+  Every run of text in both of them is Arial Bold — there is not one word of
+  regular weight on either sheet — and the letterhead is Courier New Bold,
+  which is where its wide, typewritten look comes from.
+
+  The sizes are what the PDFs declare, and the two sheets are set at
+  different sizes: the spares body is 8.28pt and the machine body 8.64pt.
+  They are listed on each template below rather than averaged into one.
+*/
 .quo {
   --line: #000;
   --bw: 0.5pt;
@@ -37,7 +47,7 @@
   background: #fff;
   color: #000;
   font-family: Arial, 'Helvetica Neue', Helvetica, sans-serif;
-  font-size: 9.5pt;
+  font-weight: 700;
   line-height: 1.22;
   -webkit-font-smoothing: antialiased;
 
@@ -48,10 +58,43 @@
 
 .quo-spares {
   width: 164.7mm;
+
+  --t-name: 14.52pt; /* NAVEEN AIRTECH */
+  --t-addr: 8.28pt; /* the four address lines */
+  --t-gstin: 7.32pt; /* the GSTIN line, smaller on this sheet */
+  --t-title: 10.44pt; /* QUOTATION */
+  --t-meta: 7.32pt; /* the consignee and SI No block */
+  --t-intro: 6.24pt; /* Dear Sir, and the covering sentence */
+  --t-head: 6.24pt; /* the column headings */
+  --t-body: 8.28pt; /* the lines */
+  --t-sums: 7.32pt; /* sub-total and GST, which are smaller than the lines */
+  --t-terms: 7.32pt;
+  --t-close: 7.32pt; /* Thanking you, Truly yours, For Naveen Airtech */
+  --t-sign: 7.32pt; /* the name under the rule */
+  --sign-rule: 33.9mm;
 }
 
 .quo-machine {
   width: 178mm;
+
+  --t-name: 15.12pt;
+  --t-addr: 8.64pt;
+  --t-gstin: 9.72pt; /* email and GSTIN, larger on this sheet */
+  --t-title: 9.72pt;
+  --t-meta: 9.72pt; /* Date : and To */
+  --t-intro: 7.56pt;
+  --t-head: 6.48pt;
+  --t-body: 8.64pt;
+  --t-sums: 8.64pt;
+  --t-terms: 8.64pt;
+  --t-close: 9.72pt;
+  --t-sign: 8.64pt;
+  --sign-rule: 67mm;
+}
+
+.quo-spares,
+.quo-machine {
+  font-size: var(--t-body);
 }
 
 /* the double rule around the whole sheet */
@@ -77,19 +120,40 @@
   line-height: 1.32;
 }
 
+.quo-seller {
+  font-size: var(--t-addr);
+}
+
+/*
+  Courier New, which is what their sheets use for the name and nothing else.
+  It is a typewriter face, so the letters space themselves — the tracking
+  that used to be set here was imitating it with Arial.
+*/
 .quo-seller .name {
-  font-size: 13pt;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: var(--t-name);
   font-weight: 700;
-  letter-spacing: 0.01em;
   margin-bottom: 0.6mm;
+}
+
+/* the last line is the GSTIN, and on the machine sheet the email above it */
+.quo-spares .quo-seller > div:last-child,
+.quo-machine .quo-seller > div:nth-last-child(2),
+.quo-machine .quo-seller > div:last-child {
+  font-size: var(--t-gstin);
 }
 
 .quo-title {
   text-align: center;
-  font-size: 11pt;
+  font-size: var(--t-title);
   font-weight: 700;
-  letter-spacing: 0.04em;
   margin: 2.6mm 0 1.4mm;
+}
+
+/* underlined on the machine sheet, plain on the spares one */
+.quo-machine .quo-title {
+  text-decoration: underline;
+  text-underline-offset: 1.6pt;
 }
 
 /* ------------------------------------------------- the two header blocks -- */
@@ -113,6 +177,11 @@
   padding: 1.1mm 0 1.4mm 1.6mm;
 }
 
+.quo-head,
+.quo-ref {
+  font-size: var(--t-meta);
+}
+
 .quo-ref {
   display: grid;
   grid-template-columns: 11mm 3mm 1fr;
@@ -122,24 +191,38 @@
 /* machine: no box — a date on the right, "To" and the address beneath */
 .quo-date-line {
   text-align: right;
+  font-size: var(--t-meta);
   margin: 1.5mm 0 3mm;
 }
 
 .quo-to {
+  font-size: var(--t-meta);
   margin-bottom: 1mm;
 }
 
+/* the buyer is set at the body size, smaller than the "To" above it */
 .quo-to-address {
+  font-size: var(--t-addr);
   padding-left: 14mm;
 }
 
+/*
+  Underlined, and centred over the description column rather than the page:
+  on their sheet it sits about 20mm left of the page's middle, because it
+  was typed into a box that starts there.
+*/
 .quo-subject {
   text-align: center;
+  font-size: var(--t-meta);
   font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 1.6pt;
   margin: 5mm 0 2mm;
+  padding-right: 38mm;
 }
 
 .quo-greeting {
+  font-size: var(--t-intro);
   margin-top: 1.5mm;
 }
 
@@ -149,8 +232,16 @@
 
 /* --------------------------------------------------------------- items -- */
 
+/*
+  The items table is a closed box on both of the firm's sheets: a rectangle
+  all the way round, with the column rules running from the heading to the
+  foot. Without the outer rule the column rules end in mid-air, which is
+  exactly what the client saw — "the bottom edge is completely free and the
+  lines are floating".
+*/
 table.quo-items {
   width: 100%;
+  border: var(--bw) solid var(--line);
   border-collapse: collapse;
   table-layout: fixed;
   margin-top: 2.6mm;
@@ -161,7 +252,6 @@ table.quo-items td {
   border-left: var(--bw) solid var(--line);
   padding: 1mm 1.2mm;
   vertical-align: top;
-  font-weight: 400;
 }
 
 table.quo-items th:first-child,
@@ -172,7 +262,7 @@ table.quo-items td:first-child {
 table.quo-items thead th {
   border-top: var(--bw) solid var(--line);
   border-bottom: var(--bw) solid var(--line);
-  font-weight: 700;
+  font-size: var(--t-head);
   text-align: center;
   padding: 1.1mm 0.25mm;
   /*
@@ -185,7 +275,6 @@ table.quo-items thead th {
     PDFs: their "Unit Price" ends about two points past its rule. Wrapping
     them instead would make the heading row twice as deep as theirs.
   */
-  font-size: 7pt;
   white-space: nowrap;
 }
 
@@ -262,6 +351,12 @@ table.quo-items tfoot td {
   a line above the sub-total and a line above the Total, and nothing drawn
   across the rest of the row.
 */
+tr.q-sub td.c-value,
+tr.q-gst td.c-value,
+tr.q-gst td.c-desc {
+  font-size: var(--t-sums);
+}
+
 tr.q-sub td.c-value {
   border-top: var(--bw) solid var(--line);
   padding-top: 1.4mm;
@@ -282,12 +377,19 @@ tr.q-gst td.c-desc {
   text-align: right;
 }
 
-/* the machine sheet says this instead of adding anything up */
+/*
+  The machine sheet says this instead of adding anything up. On their sheet
+  it is right-aligned at the end of the Description column, not centred
+  across the table — and it is an ordinary row of six cells, so the column
+  rules carry on down through it.
+*/
 tr.q-extra td {
-  text-align: center;
   padding-top: 7mm;
   padding-bottom: 7mm;
-  font-weight: 400;
+}
+
+tr.q-extra td.c-desc {
+  text-align: right;
 }
 
 /* an empty band closes the machine sheet's table */
@@ -299,6 +401,7 @@ tr.q-band td {
 /* --------------------------------------------------------------- terms -- */
 
 .quo-terms {
+  font-size: var(--t-terms);
   margin-top: 2.4mm;
 }
 
@@ -311,14 +414,19 @@ tr.q-band td {
   margin-bottom: 1.2mm;
 }
 
-/* machine: centred inside a ruled band across the sheet */
+/*
+  machine: centred and underlined, with no rules around it. It had been
+  drawn as a ruled band across the sheet, which their own sheet does not
+  have — the only ink near the words is the underline.
+*/
 .quo-terms .t-head-band {
-  border-top: var(--bw) solid var(--line);
-  border-bottom: var(--bw) solid var(--line);
+  /* their heading is a size larger than the terms beneath it */
+  font-size: var(--t-close);
   text-align: center;
   font-weight: 700;
-  padding: 1.4mm 0;
-  margin-bottom: 1.6mm;
+  text-decoration: underline;
+  text-underline-offset: 1.6pt;
+  margin: 1.6mm 0;
 }
 
 .quo-terms dl {
@@ -336,6 +444,7 @@ tr.q-band td {
 /* ----------------------------------------------------------------- end -- */
 
 .quo-close {
+  font-size: var(--t-close);
   margin-top: 3.4mm;
   flex: 1;
   display: flex;
@@ -364,10 +473,26 @@ tr.q-band td {
   object-fit: contain;
 }
 
+.quo-sign {
+  font-size: var(--t-sign);
+}
+
 .quo-sign .rule {
-  width: 34mm;
+  width: var(--sign-rule);
   border-top: 0.8pt solid var(--line);
   margin-bottom: 1mm;
+}
+
+/*
+  "Page 2 of 3", which the firm's own sheets do not have because they were
+  never more than one page. It sits under the table, small and grey enough
+  to read as a printer's mark rather than part of the quotation.
+*/
+.quo-page {
+  margin-top: 2mm;
+  font-size: 7pt;
+  text-align: right;
+  color: #444;
 }
 
 /* ------------------------------------------------------- screen preview -- */

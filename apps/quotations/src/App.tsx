@@ -27,9 +27,11 @@ import {
   type QuoteItem,
   type QuoteMeta,
   type QuoteTemplate,
+  planPages,
   type Quotation,
+  type SheetMetrics,
 } from '@naveen/shared/quote'
-import { documentToPdfBlob } from '@naveen/shared/billPdf'
+import { documentsToPdfBlob } from '@naveen/shared/billPdf'
 import { downloadBlob } from '@naveen/shared/pdf'
 import { money, todayDotted } from '@naveen/shared/format'
 import SignIn from '@naveen/shared/SignIn'
@@ -37,6 +39,7 @@ import { Button, Card, CardHead, Field, Input, Select } from '@naveen/shared/ui'
 import QuotationDocument from './components/QuotationDocument'
 import MaintenancePage from './MaintenancePage'
 import SavedPage from './SavedPage'
+import { amcFromQuote, type Amc } from '@naveen/shared/amc'
 import BackupCard from '@naveen/shared/BackupCard'
 import './styles/quotation.css'
 
@@ -101,6 +104,8 @@ function Shell() {
     half-edited one into shape.
   */
   const [editing, setEditing] = useState<Quotation | null>(null)
+  /** a maintenance contract begun from a quotation, waiting to be checked */
+  const [amcDraft, setAmcDraft] = useState<Amc | null>(null)
 
   const load = async () => {
     setCompanies(await listCompanies())
@@ -183,9 +188,18 @@ function Shell() {
           onOpen={open}
           onDelete={(q) => void remove(q)}
           onNew={startNew}
+          onStartMaintenance={(q) => {
+            setAmcDraft(amcFromQuote(q, newId('amc')))
+            setView('maintenance')
+          }}
         />
       ) : view === 'maintenance' ? (
-        <MaintenancePage companies={companies} products={products} />
+        <MaintenancePage
+          companies={companies}
+          products={products}
+          draft={amcDraft}
+          onDraftUsed={() => setAmcDraft(null)}
+        />
       ) : (
         <SettingsView onChanged={() => void load()} />
       )}
@@ -270,6 +284,14 @@ function Desk({
     The row this desk writes to. Set once it has been saved, so pressing Save
     twice corrects one quotation instead of leaving two behind.
   */
+  /*
+    The pages to print, while a PDF is being built. Rendered off-screen at
+    full size — the preview on the page is scaled, and a scaled node is not
+    what you want to hand a printer — then drawn one per A4 and thrown away.
+  */
+  const [printing, setPrinting] = useState<number[] | null>(null)
+  const printArea = useRef<HTMLDivElement>(null)
+
   const [savedId, setSavedId] = useState<string | null>(initial?.id ?? null)
   /*
     What was last written, to compare against. Asking "is this different
@@ -402,21 +424,65 @@ function Desk({
     window.setTimeout(() => setNote(''), 3500)
   }
 
+  /**
+   * Measures the sheet on screen so the lines can be shared out between
+   * pages.
+   *
+   * Everything is read from the preview, which is the same markup under the
+   * same stylesheet, and converted to millimetres through the sheet's own
+   * known printed width. Nothing here is a constant anybody has to keep in
+   * step with the CSS.
+   */
+  const measureSheet = (): SheetMetrics | null => {
+    const quo = sheet.current?.querySelector<HTMLElement>('.quo')
+    const body = quo?.querySelector('tbody')
+    const row = quo?.querySelector<HTMLElement>('tr.q-item')
+    if (!quo || !body || !row) return null
+
+    const mm = sheetWidthMm / quo.getBoundingClientRect().width
+    const q = quo.getBoundingClientRect()
+    const r = row.getBoundingClientRect()
+    const b = body.getBoundingClientRect()
+
+    const totals = [...body.querySelectorAll<HTMLElement>('tr.q-sub, tr.q-gst, tr.q-total, tr.q-extra, tr.q-band')]
+      .reduce((s, el) => s + el.getBoundingClientRect().height, 0)
+    const fills = [...body.querySelectorAll<HTMLElement>('tr.q-fill')]
+      .reduce((s, el) => s + el.getBoundingClientRect().height, 0)
+
+    return {
+      // the top of the first line is where the lines begin
+      headMm: (r.top - q.top) * mm,
+      rowMm: r.height * mm,
+      totalsMm: totals * mm,
+      // blank filler rows are not printed on a continuation sheet
+      tailMm: (q.bottom - b.bottom) * mm + fills * mm,
+    }
+  }
+
   const savePdf = async () => {
     if (!buyer) return say('Choose the company this quotation is for.')
     if (!items.length) return say('Add at least one line.')
-    const node = sheet.current?.querySelector<HTMLElement>('.quo')
-    if (!node) return
+
+    const metrics = measureSheet()
+    if (!metrics || !metrics.rowMm) return say('Could not measure the sheet.')
+    const plan = planPages(items.length, metrics)
+
     setBusy(true)
+    setPrinting(plan)
     try {
-      const width = template === 'machine' ? 178 : 164.7
-      const blob = await documentToPdfBlob(node, width)
+      // two frames: one for React to render the pages, one for layout to settle
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      const pages = [...(printArea.current?.querySelectorAll<HTMLElement>('.quo') ?? [])]
+      if (pages.length !== plan.length) throw new Error('the pages did not render')
+
+      const blob = await documentsToPdfBlob(pages, sheetWidthMm)
       const who = buyer.name.replace(/[^\w]+/g, '-').replace(/^-|-$/g, '')
       downloadBlob(blob, `Quotation-${meta.slNo || meta.dated}-${who}.pdf`)
-      say('Saved.')
+      say(plan.length > 1 ? `Saved, ${plan.length} pages.` : 'Saved.')
     } catch {
       say('Could not build the PDF.')
     } finally {
+      setPrinting(null)
       setBusy(false)
     }
   }
@@ -734,6 +800,41 @@ function Desk({
           </div>
         </div>
       </div>
+
+      {/*
+        The pages being printed, at their real size and out of sight.
+
+        Off to the left rather than display:none, because a hidden element
+        has no layout and the PDF is traced from the layout. Only present
+        while a file is being built.
+      */}
+      {printing ? (
+        <div
+          ref={printArea}
+          aria-hidden
+          style={{ position: 'fixed', left: '-10000px', top: 0, width: `${sheetWidthMm}mm` }}
+        >
+          {printing.map((count, i) => {
+            const from = printing.slice(0, i).reduce((s, n) => s + n, 0)
+            return (
+              <div key={i} style={{ width: `${sheetWidthMm}mm` }}>
+                <QuotationDocument
+                  meta={meta}
+                  seller={seller}
+                  buyer={buyer}
+                  items={items.slice(from, from + count)}
+                  allItems={items}
+                  startNo={from}
+                  foot={i === printing.length - 1}
+                  pageOf={printing.length > 1 ? [i + 1, printing.length] : null}
+                  fillTo={template === 'machine' ? 6 : 8}
+                  signature={showSignature ? seller.signature ?? null : null}
+                />
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
     </div>
   )
 }

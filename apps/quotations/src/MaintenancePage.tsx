@@ -6,6 +6,8 @@ import {
   formatDotted,
   needingReminder,
   oneYearOn,
+  parseDotted,
+  renewed,
   reminderText,
   STATUS_LABEL,
   type Amc,
@@ -49,9 +51,14 @@ import { Button, Card, Empty, Field, Input, Modal, Pill, Select } from '@naveen/
 export default function MaintenancePage({
   companies,
   products,
+  draft = null,
+  onDraftUsed,
 }: {
   companies: Company[]
   products: Product[]
+  /** a contract begun from a quotation, to open in the form ready to check */
+  draft?: Amc | null
+  onDraftUsed?: () => void
 }) {
   const [list, setList] = useState<Amc[]>([])
   const [reminders, setReminders] = useState<ReminderSettings>(DEFAULT_REMINDERS)
@@ -65,6 +72,18 @@ export default function MaintenancePage({
    * has not had the maintenance table added to it yet. Say so in words
    * someone can act on, rather than sitting on an empty screen forever.
    */
+  /**
+   * Another year, from the day after the last one ended.
+   *
+   * The whole point of the screen is the renewal, so it is one press rather
+   * than opening the contract and typing two dates — and typing them is
+   * where a year becomes eleven months by accident.
+   */
+  const renew = async (a: Amc) => {
+    await saveAmc(renewed(a))
+    await reload()
+  }
+
   const reload = async () => {
     try {
       setList(await listAmcs())
@@ -83,6 +102,18 @@ export default function MaintenancePage({
   useEffect(() => {
     void reload()
   }, [])
+
+  /*
+    Arriving from a quotation with a contract already filled in. It opens in
+    the form rather than saving itself, because the dates and the machine
+    are a reading of the quotation and somebody should agree with them
+    before they become a contract.
+  */
+  useEffect(() => {
+    if (!draft) return
+    setEditing(draft)
+    onDraftUsed?.()
+  }, [draft, onDraftUsed])
 
   const due = useMemo(() => needingReminder(list), [list])
   const rest = useMemo(() => list.filter((a) => !due.some((d) => d.id === a.id)), [list, due])
@@ -160,7 +191,13 @@ export default function MaintenancePage({
             ) : (
               <div className="stagger space-y-3">
                 {due.map((a) => (
-                  <Row key={a.id} amc={a} phones={reminders.phones} onEdit={() => setEditing(a)} />
+                  <Row
+                    key={a.id}
+                    amc={a}
+                    phones={reminders.phones}
+                    onEdit={() => setEditing(a)}
+                    onRenew={() => void renew(a)}
+                  />
                 ))}
               </div>
             )}
@@ -173,7 +210,13 @@ export default function MaintenancePage({
               </h2>
               <div className="space-y-3">
                 {rest.map((a) => (
-                  <Row key={a.id} amc={a} phones={reminders.phones} onEdit={() => setEditing(a)} />
+                  <Row
+                    key={a.id}
+                    amc={a}
+                    phones={reminders.phones}
+                    onEdit={() => setEditing(a)}
+                    onRenew={() => void renew(a)}
+                  />
                 ))}
               </div>
             </section>
@@ -220,11 +263,14 @@ function Row({
   amc,
   phones,
   onEdit,
+  onRenew,
 }: {
   amc: Amc
   phones: ReminderPhone[]
   onEdit: () => void
+  onRenew: () => void
 }) {
+  const [confirmRenew, setConfirmRenew] = useState(false)
   const status = amcStatus(amc)
   const left = daysLeft(amc)
   const needs = status === 'due' || status === 'expired'
@@ -266,6 +312,37 @@ function Row({
           {needs
             ? phones.map((p) => <TellButton key={p.id} amc={amc} to={p} />)
             : null}
+
+          {/*
+            Renewing moves both dates and is not obvious to undo, so it says
+            which year it is about to write before it writes it.
+          */}
+          {needs && amc.endDate ? (
+            confirmRenew ? (
+              <>
+                <span className="text-[12px] text-muted">
+                  To {oneYearOn(nextStart(amc.endDate))}?
+                </span>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setConfirmRenew(false)
+                    onRenew()
+                  }}
+                >
+                  Yes
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setConfirmRenew(false)}>
+                  No
+                </Button>
+              </>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => setConfirmRenew(true)}>
+                Renew
+              </Button>
+            )
+          ) : null}
+
           <Button variant="ghost" size="sm" onClick={onEdit}>
             Edit
           </Button>
@@ -273,6 +350,13 @@ function Row({
       </div>
     </Card>
   )
+}
+
+/** The day after a contract ran out, which is where its next year starts. */
+const nextStart = (endDate: string): string => {
+  const end = parseDotted(endDate)
+  if (!end) return ''
+  return formatDotted(new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1))
 }
 
 /** Opens WhatsApp with the renewal details ready to send to one of the reminder numbers. */

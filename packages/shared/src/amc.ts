@@ -188,3 +188,67 @@ export const reminderText = (amc: Amc, today = new Date()): string => {
     ...(amc.invoiceNo ? [`Bill    : ${amc.invoiceNo}`] : []),
   ].join('\n')
 }
+
+/**
+ * A contract started off a quotation.
+ *
+ * The year runs from the date on the quotation, which is the date the
+ * machine was quoted and, near enough, the date it went out — the firm
+ * counts the year from the paperwork, not from a separate decision made
+ * later. Everything else is carried across so the form opens filled in
+ * rather than empty: the company, the first line as the machine, and the
+ * quotation's number so the two can be put side by side afterwards.
+ *
+ * It is a starting point, not a record: nothing is saved until the form is
+ * saved, and every field on it can be typed over first.
+ */
+export const amcFromQuote = (q: {
+  id: string
+  meta: { slNo: string; dated: string }
+  buyer: { id: string; name: string }
+  items: { description: string; productId: string | null }[]
+}, id: string): Amc => {
+  const start = parseDotted(q.meta.dated) ? q.meta.dated : formatDotted(new Date())
+  const first = q.items[0]
+  return {
+    id,
+    companyId: q.buyer.id,
+    companyName: q.buyer.name,
+    equipment: first?.description ?? '',
+    productId: first?.productId ?? null,
+    invoiceNo: q.meta.slNo ? `Quotation ${q.meta.slNo}` : '',
+    serialNo: '',
+    startDate: start,
+    endDate: oneYearOn(start),
+    amount: null,
+    notes: '',
+    active: true,
+    createdAt: new Date().toISOString(),
+  }
+}
+
+/**
+ * The same contract, another year.
+ *
+ * A renewal picks up the day after the old one ran out, not today: a
+ * contract that lapsed three weeks ago and is being renewed now has not
+ * been uncovered for those three weeks, and dating it today would quietly
+ * lose them. If the old end date is unreadable, it starts today instead,
+ * which is the only other honest answer.
+ *
+ * Whoever has been reminded about the old year has not been reminded about
+ * the new one, so that is cleared — otherwise the first reminder of next
+ * year would be suppressed as "already sent today".
+ */
+export const renewed = (amc: Amc, today = new Date()): Amc => {
+  const end = parseDotted(amc.endDate)
+  const start = end ? new Date(end.getFullYear(), end.getMonth(), end.getDate() + 1) : today
+  const startDate = formatDotted(start)
+  return {
+    ...amc,
+    startDate,
+    endDate: oneYearOn(startDate),
+    active: true,
+    lastRemindedAt: undefined,
+  }
+}

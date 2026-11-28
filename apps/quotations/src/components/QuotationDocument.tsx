@@ -18,6 +18,33 @@ interface Props {
   signature?: string | null
   /** blank rows, so a short quotation still fills the sheet like the sample */
   fillTo?: number
+
+  /*
+    Paging. A quotation of twenty lines does not fit one A4, so it is
+    printed as several of these, each one a whole sheet with the firm's
+    letterhead on it.
+
+    items is this page's lines. Everything that has to reckon with the whole
+    quotation — the totals, and the line numbers, which carry on counting
+    across pages rather than restarting — is told about the whole of it
+    separately.
+  */
+  /** the lines in full, when items is only this page's share of them */
+  allItems?: QuoteItem[]
+  /** how many lines came before, so numbering continues */
+  startNo?: number
+  /*
+    The letterhead, the consignee and the covering sentence are printed on
+    every page rather than the first. Partly because a continuation sheet
+    that does not say who it is for is a loose piece of paper, and partly
+    because it keeps every page the same shape — which is what lets the
+    split be worked out once, from one measurement, instead of rendering
+    each candidate page to see whether it fits.
+  */
+  /** totals, terms and the sign-off: last page only */
+  foot?: boolean
+  /** [2, 3] prints "Page 2 of 3"; left out, nothing is printed */
+  pageOf?: [number, number] | null
 }
 
 /**
@@ -41,10 +68,21 @@ export default function QuotationDocument({
   className = '',
   signature = null,
   fillTo = 0,
+  allItems,
+  startNo = 0,
+  foot = true,
+  pageOf = null,
 }: Props) {
   const machine = meta.template === 'machine'
-  const calc = calcQuote(items, meta.gstRate)
-  const blanks = Math.max(0, fillTo - items.length)
+  // the totals are of the whole quotation, not of the lines on this page
+  const calc = calcQuote(allItems ?? items, meta.gstRate)
+  /*
+    Blank rows pad a short quotation out so it looks like the firm's sample.
+    A quotation long enough to need a second page does not need padding on
+    any of them — the pages are already full, and padding the last one just
+    pushes the totals down a sheet that is mostly empty space.
+  */
+  const blanks = foot && !pageOf ? Math.max(0, fillTo - items.length) : 0
 
   return (
     <div className={`quo ${machine ? 'quo-machine' : 'quo-spares'} ${className}`}>
@@ -136,7 +174,7 @@ export default function QuotationDocument({
               <tbody>
                 {items.map((item, i) => (
                   <tr className="q-item" key={item.lineId}>
-                    <td className="c-sl">{i + 1}</td>
+                    <td className="c-sl">{startNo + i + 1}</td>
                     <td className="c-desc">{item.description}</td>
                     <td className="c-hsn">{item.hsn}</td>
                     <td className="c-unit">{item.unit}</td>
@@ -144,9 +182,16 @@ export default function QuotationDocument({
                     <td className="c-value">{grouped(quoteLineValue(item))}</td>
                   </tr>
                 ))}
-                <tr className="q-extra">
-                  <td colSpan={6}>GST {meta.gstRate}% Extra</td>
-                </tr>
+                {foot ? (
+                  <tr className="q-extra">
+                    <td className="c-sl">&nbsp;</td>
+                    <td className="c-desc">GST {meta.gstRate}% Extra</td>
+                    <td className="c-hsn" />
+                    <td className="c-unit" />
+                    <td className="c-rate" />
+                    <td className="c-value" />
+                  </tr>
+                ) : null}
                 {Array.from({ length: blanks }, (_, i) => (
                   <tr className="q-fill" key={`b${i}`}>
                     <td className="c-sl">&nbsp;</td>
@@ -157,14 +202,16 @@ export default function QuotationDocument({
                     <td className="c-value" />
                   </tr>
                 ))}
-                <tr className="q-band">
-                  <td className="c-sl">&nbsp;</td>
-                  <td className="c-desc" />
-                  <td className="c-hsn" />
-                  <td className="c-unit" />
-                  <td className="c-rate" />
-                  <td className="c-value" />
-                </tr>
+                {foot ? (
+                  <tr className="q-band">
+                    <td className="c-sl">&nbsp;</td>
+                    <td className="c-desc" />
+                    <td className="c-hsn" />
+                    <td className="c-unit" />
+                    <td className="c-rate" />
+                    <td className="c-value" />
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           ) : (
@@ -182,7 +229,7 @@ export default function QuotationDocument({
               <tbody>
                 {items.map((item, i) => (
                   <tr className="q-item" key={item.lineId}>
-                    <td className="c-sl">{i + 1}</td>
+                    <td className="c-sl">{startNo + i + 1}</td>
                     <td className="c-desc">{item.description}</td>
                     <td className="c-hsn">{item.hsn}</td>
                     <td className="c-unit">{item.unit}</td>
@@ -200,36 +247,50 @@ export default function QuotationDocument({
                     <td className="c-value" />
                   </tr>
                 ))}
-                <tr className="q-sub">
-                  <td className="c-sl" />
-                  <td className="c-desc" />
-                  <td className="c-hsn" />
-                  <td className="c-unit" />
-                  <td className="c-rate" />
-                  <td className="c-value">{grouped(calc.subTotal)}</td>
-                </tr>
-                <tr className="q-gst">
-                  <td className="c-sl" />
-                  <td className="c-desc">GST {meta.gstRate}%</td>
-                  <td className="c-hsn" />
-                  <td className="c-unit" />
-                  <td className="c-rate" />
-                  <td className="c-value">{grouped(calc.gst)}</td>
-                </tr>
-                <tr className="q-total">
-                  <td className="c-sl" />
-                  <td className="c-desc" />
-                  <td className="c-hsn" />
-                  <td className="c-unit" />
-                  <td className="c-rate">Total</td>
-                  <td className="c-value">{grouped(calc.total)}</td>
-                </tr>
+                {foot ? (
+                  <>
+                    <tr className="q-sub">
+                      <td className="c-sl" />
+                      <td className="c-desc" />
+                      <td className="c-hsn" />
+                      <td className="c-unit" />
+                      <td className="c-rate" />
+                      <td className="c-value">{grouped(calc.subTotal)}</td>
+                    </tr>
+                    <tr className="q-gst">
+                      <td className="c-sl" />
+                      <td className="c-desc">GST {meta.gstRate}%</td>
+                      <td className="c-hsn" />
+                      <td className="c-unit" />
+                      <td className="c-rate" />
+                      <td className="c-value">{grouped(calc.gst)}</td>
+                    </tr>
+                    <tr className="q-total">
+                      <td className="c-sl" />
+                      <td className="c-desc" />
+                      <td className="c-hsn" />
+                      <td className="c-unit" />
+                      <td className="c-rate">Total</td>
+                      <td className="c-value">{grouped(calc.total)}</td>
+                    </tr>
+                  </>
+                ) : null}
               </tbody>
             </table>
           )}
 
+          {pageOf ? (
+            <div className="quo-page">
+              Page {pageOf[0]} of {pageOf[1]}
+              {pageOf[0] < pageOf[1] ? ' — continued overleaf' : ''}
+            </div>
+          ) : null}
+
           {/* no terms, no heading — an empty TERMS block would look like a mistake */}
-          <div className="quo-terms" style={meta.terms.length ? undefined : { display: 'none' }}>
+          <div
+            className="quo-terms"
+            style={foot && meta.terms.length ? undefined : { display: 'none' }}
+          >
             {machine ? (
               <div className="t-head-band">TERMS &amp; CONDITIONS</div>
             ) : (
@@ -253,7 +314,7 @@ export default function QuotationDocument({
             </dl>
           </div>
 
-          <div className="quo-close">
+          <div className="quo-close" style={foot ? undefined : { display: 'none' }}>
             <div>Thanking you,</div>
             <div>Truly yours,</div>
             <div style={{ marginTop: '2mm' }}>For {seller.name.replace(/^NAVEEN/, 'Naveen')},</div>

@@ -148,3 +148,65 @@ export const nextQuoteNo = (quotations: Quotation[]): string => {
   }
   return String(best + 1)
 }
+
+/* ------------------------------------------------------------- paging --- */
+
+/**
+ * What one printed sheet measures, in millimetres, read off the rendered
+ * document rather than assumed.
+ *
+ * Every line row is the same height, which is what makes a plan possible
+ * without rendering each candidate page and measuring it again: the only
+ * question is how many rows fit above the foot.
+ */
+export interface SheetMetrics {
+  /** letterhead, consignee block and the table's heading row */
+  headMm: number
+  /** one line */
+  rowMm: number
+  /** the rows inside the table that are not lines: sub-total, GST, total */
+  totalsMm: number
+  /** terms and the sign-off, below the table */
+  tailMm: number
+}
+
+/** A4 less the top and bottom margins the PDF is drawn with. */
+export const PAGE_MM = 297 - 11 * 2
+
+/**
+ * How many lines go on each page.
+ *
+ * The foot — totals, terms, signature — travels with the last page and is
+ * never split, because half a signature block across a page break is the
+ * sort of thing that gets a quotation sent back.
+ *
+ * Which means the last page holds fewer lines than the others, and the ones
+ * before it are filled. Every page carries at least one line: a final sheet
+ * showing a letterhead, an empty table and a total is not a page anybody
+ * would send, so lines are held back from the page before to keep it
+ * company.
+ *
+ * Returns one number per page. A quotation that fits returns one number,
+ * which is every line, and nothing about the existing output changes.
+ */
+export const planPages = (count: number, m: SheetMetrics, pageMm = PAGE_MM): number[] => {
+  if (count <= 0) return [0]
+
+  const room = Math.max(0, pageMm - m.headMm)
+  const plain = Math.max(1, Math.floor(room / m.rowMm))
+  const withFoot = Math.max(0, Math.floor((room - m.totalsMm - m.tailMm) / m.rowMm))
+
+  if (count <= withFoot) return [count]
+
+  const pages: number[] = []
+  let left = count
+  // the guard is for a measurement so broken that no page can hold anything
+  for (let i = 0; left > withFoot && i < 60; i++) {
+    // never take the last line: the final page must have something on it
+    const take = Math.max(1, Math.min(plain, left - 1))
+    pages.push(take)
+    left -= take
+  }
+  if (left > 0) pages.push(left)
+  return pages.length ? pages : [count]
+}
