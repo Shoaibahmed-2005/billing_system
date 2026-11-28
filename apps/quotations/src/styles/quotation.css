@@ -72,6 +72,8 @@
   --t-close: 7.32pt; /* Thanking you, Truly yours, For Naveen Airtech */
   --t-sign: 7.32pt; /* the name under the rule */
   --sign-rule: 33.9mm;
+  --box-height: 217.3mm;
+  --pad-bottom: 6mm;
 }
 
 .quo-machine {
@@ -90,6 +92,9 @@
   --t-close: 9.72pt;
   --t-sign: 8.64pt;
   --sign-rule: 67mm;
+  --box-height: 251.5mm;
+  /* their signatory block sits almost on the rule on this sheet */
+  --pad-bottom: 0.5mm;
 }
 
 .quo-spares,
@@ -97,21 +102,36 @@
   font-size: var(--t-body);
 }
 
-/* the double rule around the whole sheet */
+/*
+  The double rule around the whole sheet.
+
+  How tall it is was measured off their PDFs, which are typed on US Letter
+  rather than A4: the spares box is 217.3mm and the machine box 251.5mm.
+  Both had been 268mm here, which stretched the sheet nearly to the foot of
+  an A4 page and carried the signature down with it.
+*/
 .quo-box {
   border: var(--bw) solid var(--line);
   padding: 1pt;
-  min-height: 268mm;
+  min-height: var(--box-height);
   display: flex;
   flex-direction: column;
 }
 
+/*
+  The padding at the top is what sets how far down the letterhead starts:
+  on their sheets the name's own top edge is about 1.4mm inside the rule.
+*/
 .quo-inner {
   border: var(--bw) solid var(--line);
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 3.2mm 3mm 3mm;
+  /*
+    and the foot: their last line of type sits a good 8mm above the rule,
+    which is what holds the signature block off the bottom edge.
+  */
+  padding: 1.4mm 3mm var(--pad-bottom);
 }
 
 /* ---------------------------------------------------------------- head -- */
@@ -122,6 +142,8 @@
 
 .quo-seller {
   font-size: var(--t-addr);
+  /* their lines sit about 10.4pt apart on 8.28pt text */
+  line-height: 1.2;
 }
 
 /*
@@ -133,7 +155,8 @@
   font-family: 'Courier New', Courier, monospace;
   font-size: var(--t-name);
   font-weight: 700;
-  margin-bottom: 0.6mm;
+  line-height: 1.05;
+  margin-bottom: 0;
 }
 
 /* the last line is the GSTIN, and on the machine sheet the email above it */
@@ -147,7 +170,8 @@
   text-align: center;
   font-size: var(--t-title);
   font-weight: 700;
-  margin: 2.6mm 0 1.4mm;
+  /* the ruled block starts immediately under it on their sheet */
+  margin: 3.4mm 0 0;
 }
 
 /* underlined on the machine sheet, plain on the spares one */
@@ -185,7 +209,7 @@
 .quo-ref {
   display: grid;
   grid-template-columns: 11mm 3mm 1fr;
-  row-gap: 1.1mm;
+  row-gap: 1.6mm;
 }
 
 /* machine: no box — a date on the right, "To" and the address beneath */
@@ -217,7 +241,8 @@
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 1.6pt;
-  margin: 5mm 0 2mm;
+  /* their sheet leaves a deep gap between the address and the subject */
+  margin: 13.4mm 0 2mm;
   padding-right: 38mm;
 }
 
