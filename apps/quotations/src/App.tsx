@@ -6,7 +6,15 @@ import {
   signOut,
   type Account,
 } from '@naveen/shared/auth'
-import { ensureSeeded, listCompanies, listProducts, newId } from '@naveen/shared/store'
+import {
+  deleteQuotation,
+  ensureSeeded,
+  listCompanies,
+  listProducts,
+  listQuotations,
+  newId,
+  saveQuotation,
+} from '@naveen/shared/store'
 import { getSeller } from '@naveen/shared/store'
 import { SELLER } from '@naveen/shared/seller'
 import type { Company, Product, Seller } from '@naveen/shared/types'
@@ -14,10 +22,12 @@ import {
   calcQuote,
   emptyQuoteMeta,
   newTermRow,
+  nextQuoteNo,
   TERM_LABELS,
   type QuoteItem,
   type QuoteMeta,
   type QuoteTemplate,
+  type Quotation,
 } from '@naveen/shared/quote'
 import { documentToPdfBlob } from '@naveen/shared/billPdf'
 import { downloadBlob } from '@naveen/shared/pdf'
@@ -26,6 +36,7 @@ import SignIn from '@naveen/shared/SignIn'
 import { Button, Card, CardHead, Field, Input, Select } from '@naveen/shared/ui'
 import QuotationDocument from './components/QuotationDocument'
 import MaintenancePage from './MaintenancePage'
+import SavedPage from './SavedPage'
 import BackupCard from '@naveen/shared/BackupCard'
 import './styles/quotation.css'
 
@@ -67,7 +78,7 @@ export default function App() {
   return <Shell />
 }
 
-type View = 'quotations' | 'maintenance' | 'settings'
+type View = 'quotations' | 'saved' | 'maintenance' | 'settings'
 
 /**
  * Three screens behind three tabs, sharing one load of the companies and the
@@ -80,11 +91,39 @@ function Shell() {
   const [seller, setSeller] = useState<Seller>(SELLER)
   const [companies, setCompanies] = useState<Company[]>([])
   const [products, setProducts] = useState<Product[]>([])
+  const [quotations, setQuotations] = useState<Quotation[]>([])
+  const [ready, setReady] = useState(false)
+
+  /*
+    Which quotation the desk is working on. null is a blank one. It is passed
+    as the desk's key as well as its starting point, so opening a saved
+    quotation rebuilds the desk around it rather than trying to patch a
+    half-edited one into shape.
+  */
+  const [editing, setEditing] = useState<Quotation | null>(null)
 
   const load = async () => {
     setCompanies(await listCompanies())
     setProducts(await listProducts())
     setSeller(await getSeller())
+    setQuotations(await listQuotations())
+    setReady(true)
+  }
+
+  const open = (q: Quotation) => {
+    setEditing(q)
+    setView('quotations')
+  }
+
+  const startNew = () => {
+    setEditing(null)
+    setView('quotations')
+  }
+
+  const remove = async (q: Quotation) => {
+    await deleteQuotation(q.id)
+    if (editing?.id === q.id) setEditing(null)
+    setQuotations(await listQuotations())
   }
 
   useEffect(() => {
@@ -97,9 +136,12 @@ function Shell() {
   return (
     <>
       <nav className="sticky top-0 z-30 border-b border-line bg-card/90 backdrop-blur">
-        <div className="mx-auto flex max-w-[1400px] items-center gap-1.5 px-4 py-2.5 sm:px-6">
+        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-1.5 px-4 py-2.5 sm:px-6">
           <Tab on={view === 'quotations'} onClick={() => setView('quotations')}>
-            Quotations
+            {editing ? 'Editing' : 'New'}
+          </Tab>
+          <Tab on={view === 'saved'} onClick={() => setView('saved')}>
+            Saved{quotations.length ? ` (${quotations.length})` : ''}
           </Tab>
           <Tab on={view === 'maintenance'} onClick={() => setView('maintenance')}>
             Maintenance
@@ -121,7 +163,27 @@ function Shell() {
       </nav>
 
       {view === 'quotations' ? (
-        <Desk seller={seller} companies={companies} products={products} />
+        <Desk
+          key={editing?.id ?? 'new'}
+          seller={seller}
+          companies={companies}
+          products={products}
+          quotations={quotations}
+          ready={ready}
+          initial={editing}
+          onSaved={async (q) => {
+            setEditing(q)
+            setQuotations(await listQuotations())
+          }}
+          onNew={startNew}
+        />
+      ) : view === 'saved' ? (
+        <SavedPage
+          quotations={quotations}
+          onOpen={open}
+          onDelete={(q) => void remove(q)}
+          onNew={startNew}
+        />
       ) : view === 'maintenance' ? (
         <MaintenancePage companies={companies} products={products} />
       ) : (
@@ -168,7 +230,7 @@ function Tab({
   return (
     <button
       onClick={onClick}
-      className={`rounded-full px-4 py-1.5 text-[13.5px] font-bold transition-colors ${
+      className={`rounded-full px-3 py-1.5 text-[13.5px] font-bold transition-colors sm:px-4 ${
         on ? 'bg-espresso text-bone' : 'text-ink-2 hover:bg-bone-2 hover:text-ink'
       }`}
     >
@@ -181,16 +243,59 @@ function Desk({
   seller,
   companies,
   products,
+  quotations,
+  ready,
+  initial,
+  onSaved,
+  onNew,
 }: {
   seller: Seller
   companies: Company[]
   products: Product[]
+  quotations: Quotation[]
+  /** false until the saved list has been read, so an empty one means empty */
+  ready: boolean
+  /** the saved quotation being edited, or null for a blank one */
+  initial: Quotation | null
+  onSaved: (q: Quotation) => void | Promise<void>
+  onNew: () => void
 }) {
-  const [template, setTemplate] = useState<QuoteTemplate>('spares')
-  const [meta, setMeta] = useState<QuoteMeta>(() => emptyQuoteMeta('spares', todayDotted()))
-  const [buyerId, setBuyerId] = useState('')
-  const [items, setItems] = useState<QuoteItem[]>([])
+  const [template, setTemplate] = useState<QuoteTemplate>(initial?.meta.template ?? 'spares')
+  const [meta, setMeta] = useState<QuoteMeta>(
+    () => initial?.meta ?? emptyQuoteMeta('spares', todayDotted()),
+  )
+  const [buyerId, setBuyerId] = useState(initial?.buyer.id ?? '')
+  const [items, setItems] = useState<QuoteItem[]>(initial?.items ?? [])
+  /*
+    The row this desk writes to. Set once it has been saved, so pressing Save
+    twice corrects one quotation instead of leaving two behind.
+  */
+  const [savedId, setSavedId] = useState<string | null>(initial?.id ?? null)
+  /*
+    What was last written, to compare against. Asking "is this different
+    from the stored copy" is steadier than counting changes: an effect that
+    watches for edits also fires on mount, and React mounts twice in
+    development, so the button claimed unsaved work the moment a saved
+    quotation was opened.
+  */
+  const [savedAt, setSavedAt] = useState<string>(() =>
+    initial ? JSON.stringify({ t: initial.meta.template, m: initial.meta, b: initial.buyer.id, i: initial.items }) : '',
+  )
+
+  /*
+    The spares series is a plain running number, so a blank one starts at the
+    next free one rather than at nothing. Suggested, not enforced: it is an
+    ordinary field and typing over it is the point. Done once, the first time
+    the saved list arrives, so clearing the field on purpose stays cleared.
+  */
+  const numbered = useRef(false)
+  useEffect(() => {
+    if (numbered.current || !ready || initial || template !== 'spares') return
+    numbered.current = true
+    setMeta((m) => (m.slNo.trim() ? m : { ...m, slNo: nextQuoteNo(quotations) }))
+  }, [quotations, ready, initial, template])
   const [busy, setBusy] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [note, setNote] = useState('')
 
   const sheet = useRef<HTMLDivElement>(null)
@@ -212,6 +317,45 @@ function Desk({
 
   const buyer = companies.find((c) => c.id === buyerId) ?? null
   const calc = calcQuote(items, meta.gstRate)
+
+  /*
+    Anything typed after a save means the stored copy is behind. Watched
+    rather than compared field by field: the point is only to tell the
+    counter that Save has something to do, not to be clever about it.
+  */
+  const shape = JSON.stringify({ t: template, m: meta, b: buyerId, i: items })
+  const dirty = shape !== savedAt
+
+  /**
+   * Saving. The whole document is kept, not a reference to the catalogue:
+   * a quotation reprinted next year has to say what it said when it was
+   * sent, whatever the price list does in between.
+   */
+  const save = async () => {
+    if (!buyer) return say('Choose the company this quotation is for.')
+    if (!items.length) return say('Add at least one line.')
+    setSaving(true)
+    try {
+      const record: Quotation = {
+        id: savedId ?? newId('q'),
+        meta,
+        buyer,
+        items,
+        // the machine sheet prints no total, so the bare sum is what it has
+        total: template === 'machine' ? calc.subTotal : calc.total,
+        createdAt: initial?.createdAt ?? new Date().toISOString(),
+      }
+      await saveQuotation(record)
+      setSavedId(record.id)
+      setSavedAt(JSON.stringify({ t: template, m: meta, b: buyer.id, i: items }))
+      await onSaved(record)
+      say(savedId ? 'Saved over the earlier copy.' : 'Saved.')
+    } catch (e) {
+      say(e instanceof Error ? e.message : 'Could not save it.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   const addProduct = (p: Product) =>
     setItems((list) => [
@@ -293,12 +437,24 @@ function Desk({
             Quotations
           </h1>
           <p className="mt-1.5 text-[13px] text-muted">
-            {seller.name} · the same companies and parts as the billing counter
+            {savedId
+              ? `Saved quotation${meta.slNo ? ` No ${meta.slNo}` : ''} · ${meta.dated}`
+              : `${seller.name} · the same companies and parts as the billing counter`}
           </p>
         </div>
-        <Button variant="outline" size="sm" disabled={busy} onClick={savePdf}>
-          {busy ? 'Building…' : 'Save PDF'}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {savedId ? (
+            <Button variant="ghost" size="sm" onClick={onNew}>
+              New
+            </Button>
+          ) : null}
+          <Button variant="outline" size="sm" disabled={busy} onClick={savePdf}>
+            {busy ? 'Building…' : 'Save PDF'}
+          </Button>
+          <Button size="sm" disabled={saving} onClick={() => void save()}>
+            {saving ? 'Saving…' : savedId && !dirty ? 'Saved' : 'Save'}
+          </Button>
+        </div>
       </header>
 
       {/* the choice that changes the whole document, first thing on the page */}

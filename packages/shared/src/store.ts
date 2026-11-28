@@ -31,6 +31,10 @@ export const getInvoice = (id: string) => backend.getInvoice(id)
 export const saveInvoice = backend.saveInvoice.bind(backend)
 export const deleteInvoice = (id: string) => backend.deleteInvoice(id)
 
+export const listQuotations = () => backend.listQuotations()
+export const saveQuotation = backend.saveQuotation.bind(backend)
+export const deleteQuotation = (id: string) => backend.deleteQuotation(id)
+
 export const listAmcs = () => backend.listAmcs()
 export const saveAmc = backend.saveAmc.bind(backend)
 export const deleteAmc = (id: string) => backend.deleteAmc(id)

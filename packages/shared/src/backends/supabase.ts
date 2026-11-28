@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import type { Company, Invoice, Product, Seller } from '../types'
 import { SELLER as DEFAULT_SELLER } from '../seller'
 import type { Amc } from '../amc'
+import type { Quotation } from '../quote'
 import { DEFAULT_REMINDERS, type ReminderSettings } from '../reminders'
 import { SEED_COMPANIES, SEED_PRODUCTS, seedIds } from '../seed'
 import type { Backend } from './types'
@@ -166,6 +167,48 @@ const fromInvoice = (i: Invoice): InvoiceRow => ({
   no gain — nothing is queried by date range, only listed and compared in
   the browser. The index is on it anyway, so the ordered list is cheap.
 */
+type QuotationRow = {
+  id: string
+  sl_no: string
+  template: Quotation['meta']['template']
+  dated: string
+  buyer_name: string
+  meta: Quotation['meta']
+  buyer: Quotation['buyer']
+  items: Quotation['items']
+  total: number
+  created_at: string
+}
+
+/*
+  buyer_name and sl_no are copies of what is inside the jsonb. They are there
+  so the list can be searched and sorted in the database rather than by
+  pulling every quotation into the browser first, and nothing reads them
+  back — toQuotation takes the document from the jsonb, which is the one
+  true copy.
+*/
+const toQuotation = (r: QuotationRow): Quotation => ({
+  id: r.id,
+  meta: r.meta,
+  buyer: r.buyer,
+  items: r.items,
+  total: Number(r.total),
+  createdAt: r.created_at,
+})
+
+const fromQuotation = (q: Quotation): QuotationRow => ({
+  id: q.id,
+  sl_no: q.meta.slNo,
+  template: q.meta.template,
+  dated: q.meta.dated,
+  buyer_name: q.buyer.name,
+  meta: q.meta,
+  buyer: q.buyer,
+  items: q.items,
+  total: q.total,
+  created_at: q.createdAt,
+})
+
 type AmcRow = {
   id: string
   company_id: string | null
@@ -321,6 +364,24 @@ export const supabaseBackend: Backend = {
 
   async deleteInvoice(id) {
     fail('deleting invoice', (await supabase().from('invoices').delete().eq('id', id)).error)
+  },
+
+  async listQuotations() {
+    const { data, error } = await supabase()
+      .from('quotations')
+      .select('*')
+      .order('created_at', { ascending: false })
+    fail('loading quotations', error)
+    return (data as QuotationRow[]).map(toQuotation)
+  },
+
+  async saveQuotation(q) {
+    fail('saving the quotation', (await supabase().from('quotations').upsert(fromQuotation(q))).error)
+    return q
+  },
+
+  async deleteQuotation(id) {
+    fail('deleting the quotation', (await supabase().from('quotations').delete().eq('id', id)).error)
   },
 
   async listAmcs() {

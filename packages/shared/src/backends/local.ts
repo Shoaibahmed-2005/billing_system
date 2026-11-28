@@ -1,6 +1,7 @@
 import type { Company, Invoice, Product, Seller } from '../types'
 import { SELLER as DEFAULT_SELLER } from '../seller'
 import type { Amc } from '../amc'
+import type { Quotation } from '../quote'
 import { DEFAULT_REMINDERS, type ReminderSettings } from '../reminders'
 import { SEED_COMPANIES, SEED_PRODUCTS, seedIds } from '../seed'
 import type { Backend } from './types'
@@ -12,6 +13,7 @@ const KEY = {
   companies: 'nat.companies',
   invoices: 'nat.invoices',
   amcs: 'nat.amcs',
+  quotations: 'nat.quotations',
   seller: 'nat.seller',
   reminders: 'nat.reminders',
   seeded: 'nat.seeded.v1',
@@ -119,6 +121,28 @@ export const localBackend: Backend = {
     write(
       KEY.invoices,
       read<Invoice[]>(KEY.invoices, []).filter((i) => i.id !== id),
+    )
+  },
+
+  async listQuotations() {
+    return read<Quotation[]>(KEY.quotations, []).sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    )
+  },
+
+  async saveQuotation(q) {
+    const all = read<Quotation[]>(KEY.quotations, [])
+    const i = all.findIndex((x) => x.id === q.id)
+    if (i >= 0) all[i] = q
+    else all.push(q)
+    write(KEY.quotations, all)
+    return q
+  },
+
+  async deleteQuotation(id) {
+    write(
+      KEY.quotations,
+      read<Quotation[]>(KEY.quotations, []).filter((q) => q.id !== id),
     )
   },
 

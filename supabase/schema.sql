@@ -140,3 +140,36 @@ alter table public.amcs enable row level security;
 
 drop policy if exists amcs_rw on public.amcs;
 create policy amcs_rw on public.amcs for all to authenticated using (true) with check (true);
+
+-- -------------------------------------------------------------- quotations ---
+-- What was quoted, to whom, and for how much.
+--
+-- A quotation is a document rather than a ledger entry: it is sent, and then
+-- either it turns into an order or it does not. So it is kept whole — the
+-- buyer as they were addressed that day, the lines as they were priced, the
+-- terms as they were typed — and nothing recalculates when a price list
+-- changes later. Reprinting one a year on has to give the same sheet.
+--
+-- The serial is text and not unique, because it is typed by hand and the
+-- machine template has none at all. Two quotations carrying one number is
+-- the office's business to sort out, not a reason to refuse the save.
+create table if not exists public.quotations (
+  id         text primary key,
+  sl_no      text        not null default '',
+  template   text        not null check (template in ('spares', 'machine')),
+  dated      text        not null default '',
+  buyer_name text        not null default '',
+  meta       jsonb       not null,
+  buyer      jsonb       not null,
+  items      jsonb       not null,
+  total      numeric     not null default 0,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists quotations_created_idx on public.quotations (created_at desc);
+create index if not exists quotations_no_idx      on public.quotations (sl_no);
+
+alter table public.quotations enable row level security;
+
+drop policy if exists quotations_rw on public.quotations;
+create policy quotations_rw on public.quotations for all to authenticated using (true) with check (true);
