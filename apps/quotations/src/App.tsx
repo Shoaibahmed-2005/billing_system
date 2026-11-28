@@ -301,7 +301,7 @@ function Desk({
   const sheet = useRef<HTMLDivElement>(null)
   const sheetWidthMm = template === 'machine' ? 178 : 164.7
   const [showSignature, setShowSignature] = useState(true)
-  const { box, scale } = useFitToWidth(sheetWidthMm)
+  const { box, scale, height } = useFitToWidth(sheet, sheetWidthMm)
 
   /*
     Switching template keeps the buyer and the lines — they are the same
@@ -709,7 +709,7 @@ function Desk({
           <div
             ref={box}
             className="overflow-hidden rounded-xl2 border border-line bg-bone-2 p-4"
-            style={{ height: `calc(174mm * ${scale} + 2rem)` }}
+            style={{ height: height ? `${height}px` : `calc(174mm * ${scale} + 2rem)` }}
           >
             <div
               ref={sheet}
@@ -717,7 +717,8 @@ function Desk({
                 transform: `scale(${scale})`,
                 transformOrigin: 'top left',
                 width: `${sheetWidthMm}mm`,
-                height: '174mm',
+                // one page unless the quotation needs more than one
+                minHeight: '174mm',
               }}
             >
               <QuotationDocument
@@ -743,30 +744,48 @@ function Desk({
  * laptop and fails on a phone, where the sheet ends up wider than the box
  * and half the quotation is behind a sideways drag nobody discovers.
  *
- * So measure the box instead and scale to fit it, never past 0.62, which is
- * the size it has always been on a wide screen. Re-measured on resize, so
- * turning a phone sideways is not a broken layout.
+ * So the box is measured and the sheet scaled to fit it, never past 0.62,
+ * which is the size it has always been on a wide screen.
+ *
+ * The height has to be measured too, and that is the part that was wrong.
+ * A CSS transform shrinks what you see and not what the layout reserves, so
+ * the box cannot simply wrap the sheet — it would leave a page of white
+ * space under every quotation. Giving it the height of one A4 page instead
+ * looked right until a quotation ran longer than a page: the sheet kept
+ * growing, the box did not, and the last few lines were cut off with
+ * nothing to scroll. So the real height is read off the sheet and scaled by
+ * the same factor, and the box is exactly as tall as what it is showing,
+ * however many lines that is.
  */
-function useFitToWidth(widthMm: number) {
+function useFitToWidth(sheet: React.RefObject<HTMLDivElement>, widthMm: number) {
   const box = useRef<HTMLDivElement>(null)
   const [scale, setScale] = useState(0.62)
+  const [height, setHeight] = useState(0)
 
   useEffect(() => {
     const el = box.current
     if (!el) return
+
     const measure = () => {
       const padding = 32 // p-4 on both sides
       const sheetPx = (widthMm * 96) / 25.4
       const room = el.clientWidth - padding
-      setScale(Math.min(0.62, Math.max(0.25, room / sheetPx)))
+      const next = Math.min(0.62, Math.max(0.25, room / sheetPx))
+      setScale(next)
+      // offsetHeight is the laid-out height, which the transform does not touch
+      const tall = sheet.current?.offsetHeight ?? 0
+      // the +2 keeps rounding from shaving the hairline border off the foot
+      if (tall) setHeight(Math.ceil(tall * next) + padding + 2)
     }
+
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
+    if (sheet.current) ro.observe(sheet.current)
     return () => ro.disconnect()
-  }, [widthMm])
+  }, [sheet, widthMm])
 
-  return { box, scale }
+  return { box, scale, height }
 }
 
 function TemplateButton({
