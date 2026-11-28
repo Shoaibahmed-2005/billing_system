@@ -14,6 +14,8 @@ import type { Seller } from './types'
  *   GSTIN   33BHFPK3895N1ZS, not 33BHPFN5396M1ZS
  *   Cell    9626458081, not 9626468081
  *   Pincode 603 002, not 603 001
+ *   Street  "No : 7/15", not "No.7/15"
+ *   Town    "Chengalpattu Dist.", not "Chengalpattu"
  *
  * The GSTIN is the one that mattered. Every GSTIN carries a check digit in
  * its last character, computed from the fourteen before it; the scanned
@@ -26,7 +28,7 @@ import type { Seller } from './types'
  */
 export const SELLER: Seller = {
   name: 'NAVEEN AIRTECH',
-  addressLines: ['No.7/15, Jayaraman Street,', 'Gokulapuram,', 'Chengalpattu - 603 002'],
+  addressLines: ['No : 7/15, Jayaraman Street,', 'Gokulapuram,', 'Chengalpattu Dist. - 603 002'],
   cell: 'Cell : 99943 44413, 9626458081',
   email: 'Email : knaveenairtech@gmail.com',
   gstin: 'GSTIN: 33BHFPK3895N1ZS',
